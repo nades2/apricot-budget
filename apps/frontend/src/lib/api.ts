@@ -1,0 +1,242 @@
+/**
+ * Thin typed fetch wrapper. All calls go through Vite's /api proxy in dev
+ * (see vite.config.ts) and hit `${VITE_API_URL}` in prod.  Attaches the JWT
+ * Bearer token from the current session and clears it on 401 so the shell
+ * can redirect back to /login.
+ */
+import { clearSession, getSession } from './auth';
+
+const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '/api';
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const s = getSession();
+  const res = await fetch(`${BASE}${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(s ? { Authorization: `Bearer ${s.token}` } : {}),
+      ...(init?.headers ?? {}),
+    },
+    credentials: 'include',
+  });
+  if (res.status === 401) {
+    clearSession();
+    throw new Error('Session expirée. Reconnecte-toi.');
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message ?? `HTTP ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+export const api = {
+  get: <T>(path: string) => request<T>(path),
+  post: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
+  patch: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
+  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+
+  /**
+   * multipart/form-data upload. Do NOT set Content-Type ourselves — the browser
+   * sets it with the correct boundary when we pass a FormData body.
+   */
+  postForm: async <T>(path: string, form: FormData): Promise<T> => {
+    const s = getSession();
+    const res = await fetch(`${BASE}${path}`, {
+      method: 'POST',
+      body: form,
+      headers: s ? { Authorization: `Bearer ${s.token}` } : undefined,
+      credentials: 'include',
+    });
+    if (res.status === 401) {
+      clearSession();
+      throw new Error('Session expirée. Reconnecte-toi.');
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.message ?? `HTTP ${res.status}`);
+    }
+    return res.json() as Promise<T>;
+  },
+};
+
+// --- Extra shared types for the import wizard -----------------------------
+
+export type MappingSource = 'user_rule' | 'bank_category' | 'similar_history' | 'none';
+
+export type PreviewRow = {
+  rowIndex: number;
+  postedAt: string;
+  description: string;
+  bankCategory: string;
+  amount: string;
+  runningBalance: string;
+  informational: boolean;
+  parseError?: string;
+  suggestion: {
+    suggestedCategoryId: string | null;
+    suggestedCategoryName: string | null;
+    confidence: number;
+    source: MappingSource;
+  };
+};
+
+export type CsvImport = {
+  id: string;
+  userId: string;
+  accountId: string;
+  filename: string;
+  fileHash: string;
+  rowCount: number;
+  mappedCount: number;
+  status: 'PENDING' | 'MAPPING' | 'CONFIRMED' | 'CANCELLED';
+  rawPayload: PreviewRow[] | null;
+  errors: unknown;
+  uploadedAt: string;
+  confirmedAt: string | null;
+};
+
+export type Category = {
+  id: string;
+  userId: string | null;
+  name: string;
+  slug: string;
+  direction: CategoryDirection;
+  icon: string | null;
+  color: string | null;
+  isSystem: boolean;
+  sortOrder: number;
+};
+
+export type Account = {
+  id: string;
+  name: string;
+  type: 'ASSET' | 'LIABILITY';
+  subtype: string;
+  institution: string | null;
+  currency: string;
+  initialBalance: string;
+  currentBalance: string;
+};
+
+// --- Budget module --------------------------------------------------------
+
+export type BudgetDirection = 'EXPENSE' | 'INCOME';
+export type BudgetRecurrence = 'DAILY' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'YEARLY' | 'ONCE';
+
+export type BudgetItem = {
+  id: string;
+  userId: string;
+  categoryId: string;
+  accountId: string | null;
+  name: string;
+  direction: BudgetDirection;
+  amount: string;
+  currency: string;
+  recurrence: BudgetRecurrence;
+  anchorDate: string;
+  endDate: string | null;
+  isActive: boolean;
+  notes: string | null;
+  category: Category;
+  account: { id: string; name: string } | null;
+};
+
+export type BudgetPreset = {
+  key: string;
+  name: string;
+  categorySlug: string;
+  categoryId: string | null;
+  direction: BudgetDirection;
+  amount: number;
+  recurrence: BudgetRecurrence;
+  emoji: string;
+};
+
+export type BudgetLine = {
+  itemId: string;
+  name: string;
+  categoryId: string;
+  categoryName: string;
+  categoryColor: string | null;
+  categoryIcon: string | null;
+  direction: BudgetDirection;
+  amountPerOccurrence: string;
+  occurrences: number;
+  planned: string;
+  actual: string;
+  variance: string;
+  status: 'ok' | 'over' | 'under' | 'missing';
+};
+
+export type BudgetReport = {
+  month: string;
+  from: string;
+  to: string;
+  income:  { planned: string; actual: string; lines: BudgetLine[] };
+  expense: { planned: string; actual: string; lines: BudgetLine[] };
+  net: {
+    planned: string;
+    actual: string;
+    variance: string;
+    verdict: 'positive' | 'negative' | 'neutral';
+  };
+};
+
+// ---------- Types shared with the backend ---------------------------------
+// (would go into packages/shared-types later; inlined for now)
+
+export type CategoryDirection = 'EXPENSE' | 'INCOME' | 'TRANSFER' | 'NEUTRAL';
+
+export type MatchedPlanned = {
+  budgetItemId: string;
+  name: string;
+  plannedAmount: string;
+  delta: string;
+  deltaStatus: 'ok' | 'over' | 'under';
+};
+
+export type CalendarTx = {
+  id: string;
+  description: string;
+  amount: string;                    // signed Decimal string
+  category: {
+    id: string;
+    name: string;
+    icon: string | null;
+    color: string | null;
+    direction: CategoryDirection;
+  } | null;
+  matchedPlanned?: MatchedPlanned;
+};
+
+export type PlannedGhost = {
+  budgetItemId: string;
+  name: string;
+  categoryId: string;
+  categoryName: string;
+  categoryColor: string | null;
+  categoryIcon: string | null;
+  direction: 'EXPENSE' | 'INCOME';
+  plannedAmount: string;
+};
+
+export type CalendarDay = {
+  date: string;                      // YYYY-MM-DD
+  totalDebit: string;
+  totalCredit: string;
+  net: string;
+  txCount: number;
+  transactions: CalendarTx[];
+  overflowCount: number;
+  plannedGhosts: PlannedGhost[];
+};
+
+export type CalendarResponse = {
+  from: string;
+  to: string;
+  days: CalendarDay[];
+  totals: { debit: string; credit: string; net: string };
+};

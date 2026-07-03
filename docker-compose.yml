@@ -1,0 +1,50 @@
+# =============================================================================
+#  apricot-budget · docker-compose (production)
+#  The Postgres database lives outside this compose (existing container on
+#  10.0.0.227:5433).  Only backend + frontend are managed here, and they share
+#  a private network + read DATABASE_URL from a host-side .env.
+# =============================================================================
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    image: apricot-budget/backend:latest
+    container_name: apricot-backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      # CORS_ORIGIN can be overridden per host at deploy time.
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+    networks:
+      - apricot-net
+    # No port publication — only Nginx (frontend container) reaches it.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    image: apricot-budget/frontend:latest
+    container_name: apricot-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      # Expose only Nginx to the host — reachable from the LAN.
+      - "8080:80"
+    networks:
+      - apricot-net
+
+networks:
+  apricot-net:
+    driver: bridge

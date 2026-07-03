@@ -1,0 +1,40 @@
+# =============================================================================
+#  apricot-budget · backend Dockerfile (multi-stage)
+#  Builds the NestJS app + Prisma client, then runs it under Node 20.
+# =============================================================================
+
+# ---- Stage 1 · builder --------------------------------------------------
+FROM node:20-alpine AS builder
+WORKDIR /repo
+
+# Install everything at the root (workspaces resolve backend into apps/backend).
+COPY package.json package-lock.json* ./
+COPY prisma ./prisma
+COPY apps/backend/package.json ./apps/backend/package.json
+RUN npm install --include=dev --no-audit --no-fund
+
+# Copy sources and build.
+COPY tsconfig.json ./
+COPY apps/backend ./apps/backend
+RUN npx prisma generate --schema=prisma/schema.prisma
+RUN npm run build --workspace=@apricot/backend
+
+# ---- Stage 2 · runner ---------------------------------------------------
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+
+# Trim to production deps only; Prisma client + compiled JS come from builder.
+COPY package.json package-lock.json* ./
+COPY prisma ./prisma
+COPY apps/backend/package.json ./apps/backend/package.json
+RUN npm install --omit=dev --no-audit --no-fund
+COPY --from=builder /repo/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /repo/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /repo/apps/backend/dist ./apps/backend/dist
+
+EXPOSE 3000
+
+# Apply migrations before the API starts; a fresh volume gets bootstrapped
+# automatically, an existing one stays untouched (migrate deploy is idempotent).
+CMD ["sh", "-c", "npx prisma migrate deploy --schema=prisma/schema.prisma && node apps/backend/dist/main.js"]

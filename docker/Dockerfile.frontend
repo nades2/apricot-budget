@@ -1,0 +1,22 @@
+# =============================================================================
+#  apricot-budget · frontend Dockerfile
+#  Builds the Vite SPA and serves it with Nginx.  Nginx also proxies /api/* to
+#  the backend container so a single origin is exposed to the browser.
+# =============================================================================
+
+# ---- Stage 1 · builder --------------------------------------------------
+FROM node:20-alpine AS builder
+WORKDIR /repo
+COPY package.json package-lock.json* ./
+COPY apps/frontend/package.json ./apps/frontend/package.json
+RUN npm install --include=dev --no-audit --no-fund
+COPY apps/frontend ./apps/frontend
+# API URL is baked in at build time; empty means "same origin" → Nginx handles /api.
+ENV VITE_API_URL=/api
+RUN npm run build --workspace=@apricot/frontend
+
+# ---- Stage 2 · Nginx ---------------------------------------------------
+FROM nginx:alpine AS runner
+COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /repo/apps/frontend/dist /usr/share/nginx/html
+EXPOSE 80

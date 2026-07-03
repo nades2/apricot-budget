@@ -1,0 +1,39 @@
+{
+  "name": "apricot-budget",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Gestion de budget familial · Actifs / Passifs · Import CSV BNC",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:backend": "npm run start:dev --workspace=@apricot/backend",
+    "build:backend": "npm run build --workspace=@apricot/backend",
+    "dev:frontend": "npm run dev --workspace=@apricot/frontend",
+    "build:frontend": "npm run build --workspace=@apricot/frontend",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:migrate:status": "prisma migrate status",
+    "prisma:migrate:reset": "prisma migrate reset",
+    "prisma:studio": "prisma studio",
+    "db:seed": "prisma db seed"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.11.1",
+    "bcrypt": "^5.1.1"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/node": "^22.10.0",
+    "prisma": "^6.11.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

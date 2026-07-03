@@ -1,0 +1,291 @@
+// ============================================================================
+//  apricot-budget — Prisma schema
+//  PostgreSQL 16 · Decimal(14,2) money · UUIDs · pgcrypto + pg_trgm + citext
+// ============================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgcrypto, pg_trgm, citext]
+}
+
+// ---------------------------------------------------------------------------
+//  Enums
+// ---------------------------------------------------------------------------
+
+enum AccountType {
+  ASSET
+  LIABILITY
+}
+
+enum AccountSubtype {
+  // Assets
+  CHECKING
+  SAVINGS
+  INVESTMENT
+  REAL_ESTATE
+  VEHICLE
+  OTHER_ASSET
+  // Liabilities
+  CREDIT_CARD
+  MORTGAGE
+  LOAN
+  LINE_OF_CREDIT
+  OTHER_LIABILITY
+}
+
+enum CategoryDirection {
+  EXPENSE
+  INCOME
+  TRANSFER
+  NEUTRAL
+}
+
+enum MappingMatchType {
+  EXACT       // description == pattern (case-insensitive via citext)
+  CONTAINS    // description ILIKE '%pattern%'
+  PREFIX      // description ILIKE 'pattern%'
+  REGEX       // description ~* pattern
+}
+
+enum ImportStatus {
+  PENDING     // uploaded, not yet confirmed
+  MAPPING     // user is reviewing category mappings
+  CONFIRMED   // rows have been persisted to transactions
+  CANCELLED
+}
+
+enum BudgetDirection {
+  EXPENSE
+  INCOME
+}
+
+enum BudgetRecurrence {
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  YEARLY
+  ONCE
+}
+
+// ---------------------------------------------------------------------------
+//  Users
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String   @unique @db.Citext
+  passwordHash String   @map("password_hash")
+  displayName  String?  @map("display_name")
+  locale       String   @default("fr-CA")
+  currency     String   @default("CAD")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  accounts         Account[]
+  categories       Category[]
+  transactions     Transaction[]
+  csvImports       CsvImport[]
+  csvMappingRules  CsvMappingRule[]
+  budgetItems      BudgetItem[]
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+//  Accounts (Actifs / Passifs)
+//  A single table holds both assets and liabilities. `type` decides which side.
+// ---------------------------------------------------------------------------
+
+model Account {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String         @map("user_id") @db.Uuid
+  name           String
+  type           AccountType
+  subtype        AccountSubtype
+  institution    String?        // "Desjardins", "TD", "Tesla loan", ...
+  accountNumber  String?        @map("account_number") // last 4 digits only
+  initialBalance Decimal        @default(0) @map("initial_balance") @db.Decimal(14, 2)
+  currency       String         @default("CAD")
+  color          String?        // hex or CDS ramp name, for UI
+  icon           String?        // Tabler icon name
+  isArchived     Boolean        @default(false) @map("is_archived")
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  csvImports   CsvImport[]
+  budgetItems  BudgetItem[]
+
+  @@index([userId, isArchived])
+  @@index([userId, type])
+  @@map("accounts")
+}
+
+// ---------------------------------------------------------------------------
+//  Categories
+//  Default categories are seeded with isSystem = true (undeletable).
+//  User-created categories are private (userId set) and deletable.
+// ---------------------------------------------------------------------------
+
+model Category {
+  id         String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String?           @map("user_id") @db.Uuid  // null = global/system category
+  name       String            @db.Citext
+  slug       String            @db.Citext                // stable key, used by CSV rules
+  direction  CategoryDirection @default(EXPENSE)
+  icon       String?
+  color      String?           // CDS ramp name (coral, teal, ...) or hex
+  isSystem   Boolean           @default(false) @map("is_system")
+  sortOrder  Int               @default(0) @map("sort_order")
+  createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user            User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions    Transaction[]
+  csvMappingRules CsvMappingRule[]
+  budgetItems     BudgetItem[]
+
+  // A user cannot have two categories with the same slug.
+  // System categories share userId=NULL and their slug must be globally unique too.
+  @@unique([userId, slug], name: "uq_category_user_slug")
+  @@index([userId])
+  @@map("categories")
+}
+
+// ---------------------------------------------------------------------------
+//  Transactions
+//  Amount is a *signed* Decimal:
+//    - negative = money OUT (debit)
+//    - positive = money IN  (credit)
+//  This mirrors the accounting convention used by the frontend calendar.
+// ---------------------------------------------------------------------------
+
+model Transaction {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  accountId       String   @map("account_id") @db.Uuid
+  categoryId      String?  @map("category_id") @db.Uuid
+  csvImportId     String?  @map("csv_import_id") @db.Uuid
+
+  postedAt        DateTime @map("posted_at") @db.Date          // transaction date, no time
+  description     String   @db.Citext                          // raw bank libellé
+  amount          Decimal  @db.Decimal(14, 2)                  // signed
+  importedBalance Decimal? @map("imported_balance") @db.Decimal(14, 2)  // "Solde" from CSV, for checksum
+  notes           String?
+  externalId      String?  @map("external_id")                 // bank ref if provided, for dedup
+  isRecurring     Boolean  @default(false) @map("is_recurring")
+
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account   Account    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  category  Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  csvImport CsvImport? @relation(fields: [csvImportId], references: [id], onDelete: SetNull)
+
+  // Fast calendar queries (30/7 day sliding windows).
+  @@index([userId, postedAt(sort: Desc)])
+  @@index([accountId, postedAt(sort: Desc)])
+  @@index([categoryId])
+  @@index([csvImportId])
+  // Dedup guard: same account + same date + same amount + same external ref.
+  @@unique([accountId, postedAt, amount, externalId], name: "uq_tx_dedup")
+  @@map("transactions")
+}
+
+// ---------------------------------------------------------------------------
+//  CSV imports
+//  One row per uploaded file. Transactions reference it so we can undo an
+//  import atomically.
+// ---------------------------------------------------------------------------
+
+model CsvImport {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  accountId      String       @map("account_id") @db.Uuid
+  filename       String
+  fileHash       String       @map("file_hash")                 // sha256, prevents re-import
+  rowCount       Int          @map("row_count")
+  mappedCount    Int          @default(0) @map("mapped_count")
+  status         ImportStatus @default(PENDING)
+  rawPayload     Json?        @map("raw_payload")               // parsed rows, kept until CONFIRMED
+  errors         Json?                                          // per-row parsing errors
+  uploadedAt     DateTime     @default(now()) @map("uploaded_at") @db.Timestamptz(6)
+  confirmedAt    DateTime?    @map("confirmed_at") @db.Timestamptz(6)
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account      Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@unique([userId, fileHash], name: "uq_import_hash")
+  @@index([userId, uploadedAt(sort: Desc)])
+  @@map("csv_imports")
+}
+
+// ---------------------------------------------------------------------------
+//  CSV mapping rules — description → category
+//  Learned automatically as the user confirms mappings, or created by hand.
+//  Ordered by (priority DESC, timesUsed DESC).
+// ---------------------------------------------------------------------------
+
+model CsvMappingRule {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String           @map("user_id") @db.Uuid
+  categoryId     String           @map("category_id") @db.Uuid
+  matchType      MappingMatchType @default(EXACT) @map("match_type")
+  pattern        String           @db.Citext                    // description or fragment
+  priority       Int              @default(100)                 // higher = evaluated first
+  autoCreated    Boolean          @default(false) @map("auto_created")
+  timesUsed      Int              @default(0) @map("times_used")
+  lastUsedAt     DateTime?        @map("last_used_at") @db.Timestamptz(6)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, matchType, pattern], name: "uq_rule_user_pattern")
+  @@index([userId, priority(sort: Desc)])
+  // pg_trgm GIN index on `pattern` is created in the migration SQL (see 0001_init).
+  @@map("csv_mapping_rules")
+}
+
+// ---------------------------------------------------------------------------
+//  Budget items — recurring planned cashflows tied to a category.
+//  `amount` is always positive; `direction` gives the sign.
+//  Correlation with real transactions is done at query time by category.
+// ---------------------------------------------------------------------------
+
+model BudgetItem {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String            @map("user_id") @db.Uuid
+  categoryId  String            @map("category_id") @db.Uuid
+  accountId   String?           @map("account_id") @db.Uuid
+  name        String
+  direction   BudgetDirection
+  amount      Decimal           @db.Decimal(14, 2)
+  currency    String            @default("CAD")
+  recurrence  BudgetRecurrence
+  anchorDate  DateTime          @map("anchor_date") @db.Date
+  endDate     DateTime?         @map("end_date") @db.Date
+  isActive    Boolean           @default(true) @map("is_active")
+  notes       String?
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  account  Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  @@index([userId, isActive])
+  @@index([userId, categoryId])
+  @@map("budget_items")
+}
