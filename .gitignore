@@ -39,3 +39,4 @@ tmp/
 uploads/
 *.csv
 !prisma/seeds/*.csv
+preview.json
