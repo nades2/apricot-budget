@@ -240,3 +240,85 @@ export type CalendarResponse = {
   days: CalendarDay[];
   totals: { debit: string; credit: string; net: string };
 };
+
+// --- Forecast module ------------------------------------------------------
+
+export type ScheduledStatus = 'PROJECTED' | 'REALIZED' | 'SKIPPED' | 'CANCELLED';
+
+export type ForecastEntry = {
+  budgetItemId: string;
+  name: string;
+  categoryId: string;
+  direction: BudgetDirection;
+  amount: string;              // signé
+  status: ScheduledStatus;
+  instanceId?: string;
+};
+
+export type ForecastDay = {
+  date: string;                // YYYY-MM-DD
+  realizedDelta: string;
+  projectedDelta: string;
+  netDelta: string;
+  balance: string;
+  entries: ForecastEntry[];
+  belowThreshold: boolean;
+};
+
+export type ForecastResponse = {
+  accountId: string;
+  currency: string;
+  from: string;
+  to: string;
+  openingBalance: string;
+  closingBalance: string;
+  lowBalanceThreshold: string | null;
+  days: ForecastDay[];
+};
+
+// --- Recurrence detector --------------------------------------------------
+
+export type DetectedRecurrence = {
+  key: string;
+  suggestedName: string;
+  normalizedDescription: string;
+  matchingDescriptions: string[];
+  direction: BudgetDirection;
+  recurrence: BudgetRecurrence;
+  avgAmount: string;
+  amountStdev: string;
+  medianIntervalDays: number;
+  intervalStdevDays: number;
+  occurrences: number;
+  firstSeen: string;
+  lastSeen: string;
+  nextExpected: string;
+  confidence: number;             // 0-100
+  categoryId: string | null;
+  suggestedTransactionIds: string[];
+};
+
+export type AcceptCandidatePayload = {
+  candidate: DetectedRecurrence;
+  overrides?: {
+    name?: string;
+    categoryId?: string;
+    accountId?: string | null;
+    amount?: string;
+    anchorDate?: string;
+  };
+};
+
+
+// --- Forecast alerts (J-7 belowThreshold) ---------------------------------
+
+export type ForecastAlert = {
+  accountId: string;
+  accountName: string;
+  currency: string;
+  firstBelowDate: string;
+  daysUntil: number;
+  projectedBalance: string;
+  lowBalanceThreshold: string;
+  severity: 'imminent' | 'soon' | 'watch';
+};

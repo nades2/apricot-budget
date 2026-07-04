@@ -6,8 +6,8 @@ import { formatCurrency } from '../../lib/format';
 type Filter = 'all' | 'uncategorized' | 'errors';
 
 /**
- * The user's overrides + rule-learning flags for each row.
- * Only entries where the user changed something get sent to the confirm endpoint.
+ * L override utilisateur + le flag "apprendre" pour chaque ligne.
+ * Seuls les rowIndex avec un changement sont envoyes au /confirm.
  */
 type Override = { categoryId?: string; saveAsRule?: boolean };
 
@@ -20,8 +20,6 @@ export function StepMapping({
   onConfirmed: (updated: CsvImport) => void;
   onCancel: () => void;
 }) {
-  // Re-fetch the preview to always have the freshest raw_payload (in case Vite HMR
-  // reloaded and we lost the initial upload response's rawPayload).
   const { data: preview } = useQuery({
     queryKey: ['csv-import', csvImport.id],
     queryFn: () => api.get<CsvImport>(`/csv-imports/${csvImport.id}`),
@@ -88,33 +86,33 @@ export function StepMapping({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-4 items-center text-sm">
-        <StatChip label="Mappées" value={stats.categorized} color="green" />
-        <StatChip label="Non catégorisées" value={stats.uncategorized} color="amber" />
+        <StatChip label="Mappees" value={stats.categorized} color="green" />
+        <StatChip label="Non categorisees" value={stats.uncategorized} color="amber" />
         <StatChip label="Informationnelles" value={stats.informational} color="gray" />
         {stats.errored > 0 && <StatChip label="Erreurs" value={stats.errored} color="red" />}
 
-        <div className="ml-auto flex gap-1 border border-gray-200 rounded-md overflow-hidden text-xs">
+        <div className="ml-auto flex gap-1 border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden text-xs">
           <FilterBtn value="all" current={filter} onClick={setFilter} label="Toutes" />
-          <FilterBtn value="uncategorized" current={filter} onClick={setFilter} label="À mapper" />
+          <FilterBtn value="uncategorized" current={filter} onClick={setFilter} label="A mapper" />
           {stats.errored > 0 && (
             <FilterBtn value="errors" current={filter} onClick={setFilter} label="Erreurs" />
           )}
         </div>
       </div>
 
-      <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+      <div className="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden bg-white dark:bg-gray-950">
         <div className="max-h-[60vh] overflow-y-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 sticky top-0 z-10">
-              <tr className="text-xs text-gray-500 uppercase tracking-wide">
-                <th className="text-left px-3 py-2 font-normal">Date</th>
-                <th className="text-left px-3 py-2 font-normal">Description</th>
-                <th className="text-right px-3 py-2 font-normal">Montant</th>
-                <th className="text-left px-3 py-2 font-normal">Catégorie</th>
-                <th className="text-center px-3 py-2 font-normal">Apprendre</th>
+            <thead className="bg-gray-50 dark:bg-gray-900 sticky top-0 z-10 border-b border-gray-200 dark:border-gray-800">
+              <tr className="text-xs text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                <th className="text-left px-3 py-2.5 font-semibold">Date</th>
+                <th className="text-left px-3 py-2.5 font-semibold">Description</th>
+                <th className="text-right px-3 py-2.5 font-semibold">Montant</th>
+                <th className="text-left px-3 py-2.5 font-semibold">Categorie</th>
+                <th className="text-center px-3 py-2.5 font-semibold">Apprendre</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800/60">
               {filteredRows.map((r) => (
                 <MappingRow
                   key={r.rowIndex}
@@ -139,16 +137,16 @@ export function StepMapping({
       <div className="flex justify-between items-center">
         <button
           onClick={onCancel}
-          className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+          className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
         >
-          ← Annuler
+          &larr; Annuler
         </button>
         <button
           onClick={() => confirm.mutate()}
           disabled={confirm.isPending}
           className="px-4 py-2 bg-cat-teal-fg text-white rounded-md text-sm font-medium disabled:opacity-40 hover:bg-cat-teal-fg/90"
         >
-          {confirm.isPending ? 'Confirmation…' : `Confirmer et importer ${stats.categorized + stats.uncategorized} transactions →`}
+          {confirm.isPending ? 'Confirmation...' : `Confirmer et importer ${stats.categorized + stats.uncategorized} transactions ->`}
         </button>
       </div>
     </div>
@@ -174,64 +172,116 @@ function MappingRow({
   const dim = row.informational || !!row.parseError;
 
   return (
-    <tr className={dim ? 'opacity-50' : ''}>
-      <td className="px-3 py-2 text-gray-600 tabular-nums whitespace-nowrap">{row.postedAt}</td>
-      <td className="px-3 py-2 min-w-0">
-        <div className="truncate max-w-[240px]" title={row.description}>{row.description}</div>
-        {row.parseError && <div className="text-xs text-cat-red-fg">⚠ {row.parseError}</div>}
-        {row.informational && <div className="text-xs text-gray-400 italic">informationnelle</div>}
+    <tr className={`hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors ${dim ? 'opacity-60' : ''}`}>
+      {/* Date : neutre, tabulaire, plus discret que la description */}
+      <td className="px-3 py-2.5 text-gray-500 dark:text-gray-400 tabular-nums whitespace-nowrap">
+        {row.postedAt}
       </td>
-      <td className={`px-3 py-2 text-right tabular-nums font-medium whitespace-nowrap ${
-        isCredit ? 'text-cat-green-fg' : 'text-gray-800'
+
+      {/* Description : contraste MAX — c est l info principale a l ecran.
+          gray-900 en clair, gray-100 en sombre = presque noir/blanc pur. */}
+      <td className="px-3 py-2.5 min-w-0">
+        <div
+          className="truncate max-w-[280px] text-gray-900 dark:text-gray-100 font-medium"
+          title={row.description}
+        >
+          {row.description}
+        </div>
+        {row.parseError && (
+          <div className="text-xs text-cat-red-fg mt-0.5">! {row.parseError}</div>
+        )}
+        {row.informational && (
+          <div className="text-xs text-gray-400 dark:text-gray-500 italic mt-0.5">
+            informationnelle
+          </div>
+        )}
+      </td>
+
+      {/* Montant : credits en vert, debits en couleur du texte principal
+          (pas de gris-800 qui devient invisible en dark) */}
+      <td className={`px-3 py-2.5 text-right tabular-nums font-semibold whitespace-nowrap ${
+        isCredit
+          ? 'text-cat-green-fg'
+          : 'text-gray-900 dark:text-gray-100'
       }`}>
         {isCredit ? '+' : ''}{formatCurrency(row.amount, true)}
       </td>
-      <td className="px-3 py-2">
+
+      {/* Categorie : dropdown avec styles dark propres */}
+      <td className="px-3 py-2.5">
         <div className="flex items-center gap-2">
           <select
             value={effectiveCategoryId}
             onChange={(e) => onSetCategory(e.target.value || undefined)}
             disabled={dim}
-            className="border border-gray-300 rounded px-2 py-1 text-xs bg-white min-w-[160px]"
+            className="border border-gray-300 dark:border-gray-700 rounded px-2 py-1 text-xs
+                       bg-white dark:bg-gray-900
+                       text-gray-900 dark:text-gray-100
+                       disabled:opacity-50
+                       min-w-[160px] focus:outline-none focus:ring-1 focus:ring-cat-teal-fg"
           >
-            <option value="">— Aucune —</option>
+            <option value="">-- Aucune --</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
-          <SourceBadge source={row.suggestion.source} confidence={row.suggestion.confidence} overridden={!!override?.categoryId} />
+          <SourceBadge
+            source={row.suggestion.source}
+            confidence={row.suggestion.confidence}
+            overridden={!!override?.categoryId}
+          />
         </div>
       </td>
-      <td className="px-3 py-2 text-center">
+
+      {/* Apprendre : checkbox accent-teal pour un vrai indicateur visuel */}
+      <td className="px-3 py-2.5 text-center">
         <input
           type="checkbox"
           checked={!!override?.saveAsRule}
           onChange={onToggleRule}
           disabled={dim || !effectiveCategoryId}
-          title="Créer une règle pour auto-mapper ce libellé aux prochains imports"
+          className="w-4 h-4 accent-cat-teal-fg cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+          title="Creer une regle pour auto-mapper ce libelle aux prochains imports"
         />
       </td>
     </tr>
   );
 }
 
-function SourceBadge({ source, confidence, overridden }: { source: MappingSource; confidence: number; overridden: boolean }) {
-  if (overridden) return <span className="text-xs px-1.5 py-0.5 rounded bg-cat-purple-bg text-cat-purple-fg">manuel</span>;
+function SourceBadge({
+  source,
+  confidence,
+  overridden,
+}: {
+  source: MappingSource;
+  confidence: number;
+  overridden: boolean;
+}) {
+  if (overridden) {
+    return (
+      <span className="text-xs px-1.5 py-0.5 rounded bg-cat-purple-bg text-cat-purple-fg font-medium">
+        manuel
+      </span>
+    );
+  }
 
   const label: Record<MappingSource, string> = {
-    user_rule: 'règle',
+    user_rule: 'regle',
     bank_category: 'BNC',
     similar_history: 'similaire',
-    none: '—',
+    none: '-',
   };
   const cls: Record<MappingSource, string> = {
     user_rule: 'bg-cat-green-bg text-cat-green-fg',
     bank_category: 'bg-cat-teal-bg text-cat-teal-fg',
     similar_history: 'bg-cat-blue-bg text-cat-blue-fg',
-    none: 'bg-gray-100 text-gray-500',
+    none: 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400',
   };
   return (
-    <span className={`text-xs px-1.5 py-0.5 rounded ${cls[source]}`} title={`Confiance ${(confidence * 100).toFixed(0)}%`}>
+    <span
+      className={`text-xs px-1.5 py-0.5 rounded font-medium ${cls[source]}`}
+      title={`Confiance ${(confidence * 100).toFixed(0)}%`}
+    >
       {label[source]}
     </span>
   );
@@ -246,12 +296,26 @@ function StatChip({ label, value, color }: { label: string; value: number; color
   );
 }
 
-function FilterBtn({ value, current, onClick, label }: { value: Filter; current: Filter; onClick: (f: Filter) => void; label: string }) {
+function FilterBtn({
+  value,
+  current,
+  onClick,
+  label,
+}: {
+  value: Filter;
+  current: Filter;
+  onClick: (f: Filter) => void;
+  label: string;
+}) {
   const active = current === value;
   return (
     <button
       onClick={() => onClick(value)}
-      className={`px-3 py-1 ${active ? 'bg-cat-teal-bg text-cat-teal-fg font-medium' : 'text-gray-600 hover:bg-gray-50'}`}
+      className={`px-3 py-1 transition ${
+        active
+          ? 'bg-cat-teal-bg text-cat-teal-fg font-medium'
+          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+      }`}
     >
       {label}
     </button>

@@ -5,11 +5,13 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
+import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { QueryTransactionsDto } from './dto/query-transactions.dto';
 import { AuthenticatedUser, CurrentUser } from '../common/current-user.decorator';
 
@@ -30,6 +32,15 @@ export class TransactionsController {
   @Post()
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateTransactionDto) {
     return this.transactions.create(user.id, dto);
+  }
+
+  @Patch(':id')
+  update(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateTransactionDto,
+  ) {
+    return this.transactions.update(user.id, id, dto);
   }
 
   @Delete(':id')

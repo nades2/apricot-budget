@@ -2,14 +2,15 @@
   "name": "@apricot/backend",
   "version": "0.1.0",
   "private": true,
-  "description": "apricot-budget · API NestJS",
+  "description": "apricot-budget \u00b7 API NestJS",
   "main": "dist/main.js",
   "scripts": {
     "build": "nest build",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main"
+    "start:prod": "node dist/main",
+    "test": "node --import tsx --test 'src/**/*.test.ts'"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
@@ -27,6 +28,7 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.2",
+    "rrule": "^2.8.1",
     "rxjs": "^7.8.1"
   },
   "devDependencies": {

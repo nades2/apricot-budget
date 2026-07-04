@@ -9,6 +9,9 @@ import { TransactionsModule } from './transactions/transactions.module';
 import { CsvImportModule } from './csv-import/csv-import.module';
 import { CalendarModule } from './calendar/calendar.module';
 import { BudgetModule } from './budget/budget.module';
+import { ForecastModule } from './forecast/forecast.module';
+import { RecurrenceDetectorModule } from './recurrence-detector/recurrence-detector.module';
+import { ReconciliationModule } from './reconciliation/reconciliation.module';
 
 @Module({
   imports: [
@@ -17,13 +20,16 @@ import { BudgetModule } from './budget/budget.module';
       envFilePath: ['../../.env', '../.env', '.env'],
     }),
     PrismaModule,
-    AuthModule,             // must load before feature modules — installs global JwtAuthGuard
+    AuthModule,
     CategoriesModule,
     AccountsModule,
     TransactionsModule,
     CsvImportModule,
     CalendarModule,
     BudgetModule,
+    ForecastModule,
+    RecurrenceDetectorModule,
+    ReconciliationModule,
   ],
   controllers: [HealthController],
 })

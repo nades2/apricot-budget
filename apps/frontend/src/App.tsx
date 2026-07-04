@@ -1,5 +1,8 @@
 import { NavLink, Route, Routes, Navigate, useNavigate } from 'react-router-dom';
 import { CalendarPage } from './pages/CalendarPage';
+import { ForecastPage } from './pages/ForecastPage';
+import { DetectionsPage } from './pages/DetectionsPage';
+import { CategoriesPage } from './pages/CategoriesPage';
 import { ImportPage } from './pages/ImportPage';
 import { AccountsPage } from './pages/AccountsPage';
 import { BudgetPage } from './pages/BudgetPage';
@@ -15,6 +18,7 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
     title: 'Principal',
     items: [
       { to: '/calendar', label: 'Calendrier', icon: 'ti-calendar-month' },
+      { to: '/forecast', label: 'Prévision',  icon: 'ti-chart-line' },
       { to: '/budget',   label: 'Budget',     icon: 'ti-target' },
     ],
   },
@@ -24,6 +28,8 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
       { to: '/actifs',   label: 'Actifs',     icon: 'ti-trending-up' },
       { to: '/passifs',  label: 'Passifs',    icon: 'ti-trending-down' },
       { to: '/import',   label: 'Import CSV', icon: 'ti-file-import' },
+      { to: '/categories', label: 'Categories', icon: 'ti-tags' },
+      { to: '/detections', label: 'Récurrences', icon: 'ti-wand' },
     ],
   },
 ];
@@ -57,7 +63,6 @@ function AuthedShell() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      {/* --- Top bar --- */}
       <header className="h-14 shrink-0 flex items-center justify-between px-4 border-b border-gray-200 dark:border-gray-800 bg-white/60 dark:bg-black/30 backdrop-blur z-30">
         <div className="flex items-center gap-2 min-w-[176px]">
           <span className="text-xl">🍑</span>
@@ -97,9 +102,8 @@ function AuthedShell() {
         </div>
       </header>
 
-      {/* --- Body --- */}
       <div className="flex-1 min-h-0 flex">
-        <aside className="w-52 shrink-0 border-r border-gray-200 dark:border-gray-800 px-3 py-4 bg-white/40 dark:bg-black/20 overflow-y-auto">
+        <aside className="w-52 shrink-0 border-r border-gray-200 dark:border-gray-800 px-3 py-4 bg-white dark:bg-gray-950 overflow-y-auto">
           {SECTIONS.map((section) => (
             <div key={section.title} className="mb-5">
               <div className="text-[10px] font-medium tracking-wider text-gray-400 dark:text-gray-500 uppercase px-2 mb-2">
@@ -118,10 +122,13 @@ function AuthedShell() {
           <Routes>
             <Route path="/" element={<Navigate to="/calendar" replace />} />
             <Route path="/calendar" element={<CalendarPage />} />
+            <Route path="/forecast" element={<ForecastPage />} />
             <Route path="/budget"   element={<BudgetPage />} />
             <Route path="/actifs"   element={<AccountsPage type="ASSET" />} />
             <Route path="/passifs"  element={<AccountsPage type="LIABILITY" />} />
             <Route path="/import"   element={<ImportPage />} />
+            <Route path="/detections" element={<DetectionsPage />} />
+            <Route path="/categories" element={<CategoriesPage />} />
             <Route path="*"         element={<div className="p-6 text-sm text-gray-500 dark:text-gray-400">À venir…</div>} />
           </Routes>
         </main>

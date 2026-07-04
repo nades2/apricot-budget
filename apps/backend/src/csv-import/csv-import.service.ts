@@ -11,6 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CsvParserService, DesjardinsRow } from './csv-parser.service';
 import { MappingEngineService, MappingSuggestion } from './mapping-engine.service';
 import { ConfirmImportDto } from './dto/confirm-import.dto';
+import { ReconciliationService } from '../reconciliation/reconciliation.service';
 
 @Injectable()
 export class CsvImportService {
@@ -20,6 +21,7 @@ export class CsvImportService {
     private readonly prisma: PrismaService,
     private readonly parser: CsvParserService,
     private readonly engine: MappingEngineService,
+    private readonly reconciliation: ReconciliationService,
   ) {}
 
   /**
@@ -144,6 +146,20 @@ export class CsvImportService {
           data: txData,
           skipDuplicates: true, // gracefully handle re-runs against unique (account_id, posted_at, amount, external_id)
         });
+
+        // Reconciliation - dans la meme transaction Prisma pour rester atomique.
+        // Fenetre = min/max des dates postees dans le lot.
+        if (txData.length > 0) {
+          const dates = txData.map((t) => t.postedAt as Date);
+          const from = new Date(Math.min(...dates.map((d) => d.getTime())));
+          const to = new Date(Math.max(...dates.map((d) => d.getTime())));
+          await this.reconciliation.reconcile(userId, {
+            accountId: imp.accountId,
+            from,
+            to,
+            client: tx,
+          });
+        }
 
         // Rules are usually a small subset — a handful at most — so individual upserts are fine.
         for (const r of rulesToLearn) {

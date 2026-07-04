@@ -74,6 +74,18 @@ enum BudgetRecurrence {
   ONCE
 }
 
+// Statut d'une occurrence projetée dans le calendrier de prévision.
+//   PROJECTED  — occurrence attendue, non encore rapprochée
+//   REALIZED   — matchée avec une vraie transaction (via ReconciliationService)
+//   SKIPPED    — attendue mais non survenue (le paiement n'a pas eu lieu)
+//   CANCELLED  — supprimée manuellement par l'utilisateur pour cette date
+enum ScheduledInstanceStatus {
+  PROJECTED
+  REALIZED
+  SKIPPED
+  CANCELLED
+}
+
 // ---------------------------------------------------------------------------
 //  Users
 // ---------------------------------------------------------------------------
@@ -111,7 +123,11 @@ model Account {
   subtype        AccountSubtype
   institution    String?        // "Desjardins", "TD", "Tesla loan", ...
   accountNumber  String?        @map("account_number") // last 4 digits only
-  initialBalance Decimal        @default(0) @map("initial_balance") @db.Decimal(14, 2)
+  initialBalance     Decimal   @default(0) @map("initial_balance") @db.Decimal(14, 2)
+  // Date de référence du solde initial. Point d'ancrage pour la projection :
+  // le ForecastService part de ce solde à cette date, applique les transactions
+  // réelles postérieures, puis les ScheduledInstance à venir.
+  initialBalanceDate DateTime  @default(dbgenerated("CURRENT_DATE")) @map("initial_balance_date") @db.Date
   currency       String         @default("CAD")
   color          String?        // hex or CDS ramp name, for UI
   icon           String?        // Tabler icon name
@@ -190,6 +206,11 @@ model Transaction {
   account   Account    @relation(fields: [accountId], references: [id], onDelete: Cascade)
   category  Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   csvImport CsvImport? @relation(fields: [csvImportId], references: [id], onDelete: SetNull)
+
+  // Réverse-lien depuis ScheduledInstance quand la transaction rapproche une
+  // occurrence projetée. Une transaction ne peut satisfaire qu'une occurrence
+  // à la fois (contrainte UNIQUE côté ScheduledInstance.matchedTransactionId).
+  matchedScheduledInstance ScheduledInstance? @relation("ScheduledInstanceMatch")
 
   // Fast calendar queries (30/7 day sliding windows).
   @@index([userId, postedAt(sort: Desc)])
@@ -276,6 +297,21 @@ model BudgetItem {
   recurrence  BudgetRecurrence
   anchorDate  DateTime          @map("anchor_date") @db.Date
   endDate     DateTime?         @map("end_date") @db.Date
+
+  // Prévision cashflow — RRULE optionnelle (RFC 5545) qui *remplace* l'enum
+  // `recurrence` quand elle est présente. Permet des cadences complexes :
+  //   FREQ=MONTHLY;BYMONTHDAY=1,15         (bi-mensuel jours fixes)
+  //   FREQ=WEEKLY;BYDAY=FR;INTERVAL=2      (aux 2 vendredis, paie)
+  //   FREQ=MONTHLY;BYDAY=-1FR              (dernier vendredi du mois)
+  rrule       String?
+  // Ancre RRULE (DTSTART). Fallback = anchorDate si null.
+  dtstart     DateTime?         @map("dtstart") @db.Date
+  // Si vrai, la ScheduledInstance passe automatiquement à REALIZED quand
+  // une transaction importée matche. Sinon l'utilisateur confirme manuellement.
+  autoConfirm Boolean           @default(true) @map("auto_confirm")
+  // Score 0-100 de fiabilité de la prévision (utilisé par le détecteur auto).
+  confidence  Int               @default(100)
+
   isActive    Boolean           @default(true) @map("is_active")
   notes       String?
   createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -285,7 +321,37 @@ model BudgetItem {
   category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   account  Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
 
+  scheduledInstances ScheduledInstance[]
+
   @@index([userId, isActive])
   @@index([userId, categoryId])
   @@map("budget_items")
+}
+
+// ---------------------------------------------------------------------------
+//  ScheduledInstance — occurrences matérialisées d'un BudgetItem
+//  Une ligne = une occurrence future ou passée dans le calendrier de prévision.
+//  Créée à la volée par le ForecastService et persistée dès qu'elle est
+//  modifiée (montant ajusté, statut REALIZED/SKIPPED, transaction matchée).
+//  Les projections purement futures peuvent rester non-persistées.
+// ---------------------------------------------------------------------------
+
+model ScheduledInstance {
+  id             String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  budgetItemId   String                  @map("budget_item_id") @db.Uuid
+  expectedDate   DateTime                @map("expected_date") @db.Date
+  expectedAmount Decimal                 @map("expected_amount") @db.Decimal(14, 2)  // signé, comme Transaction
+  status         ScheduledInstanceStatus @default(PROJECTED)
+  matchedTransactionId String?           @unique @map("matched_transaction_id") @db.Uuid
+  notes          String?
+  createdAt      DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  budgetItem         BudgetItem   @relation(fields: [budgetItemId], references: [id], onDelete: Cascade)
+  matchedTransaction Transaction? @relation("ScheduledInstanceMatch", fields: [matchedTransactionId], references: [id], onDelete: SetNull)
+
+  // Une seule occurrence par jour par règle : évite les doublons de projection.
+  @@unique([budgetItemId, expectedDate], name: "uq_instance_item_date")
+  @@index([expectedDate, status])
+  @@map("scheduled_instances")
 }

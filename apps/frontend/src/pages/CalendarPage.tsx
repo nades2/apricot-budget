@@ -91,21 +91,37 @@ export function CalendarPage() {
           <div className="flex-1 min-h-0">
             <CalendarView data={data} mode={mode} onDayClick={setSelectedDay} />
           </div>
-          <footer className="shrink-0 mt-2 md:mt-3 flex gap-4 md:gap-6 text-xs md:text-sm text-gray-600 dark:text-gray-400 flex-wrap">
-            <span>
-              <span className="text-cat-red-fg font-medium">− {formatCurrency(data.totals.debit, true)}</span>
-              <span className="ml-1 text-gray-500">dépenses</span>
-            </span>
-            <span>
-              <span className="text-cat-green-fg font-medium">+ {formatCurrency(data.totals.credit, true)}</span>
-              <span className="ml-1 text-gray-500">revenus</span>
-            </span>
-            <span>
-              Solde net :{' '}
-              <b className={Number(data.totals.net) >= 0 ? 'text-cat-green-fg' : 'text-cat-red-fg'}>
+          <footer className="shrink-0 mt-2 md:mt-3 flex gap-6 md:gap-10 flex-wrap">
+            <div className="flex flex-col">
+              <span className="text-[11px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-medium">
+                Dépenses ({range} j)
+              </span>
+              <span className="text-base md:text-lg font-bold tabular-nums text-cat-red-fg dark:text-cat-red">
+                − {formatCurrency(data.totals.debit, true)}
+              </span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[11px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-medium">
+                Revenus ({range} j)
+              </span>
+              <span className="text-base md:text-lg font-bold tabular-nums text-cat-green-fg dark:text-cat-green">
+                + {formatCurrency(data.totals.credit, true)}
+              </span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[11px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-medium">
+                Solde net
+              </span>
+              <span
+                className={`text-base md:text-lg font-bold tabular-nums ${
+                  Number(data.totals.net) >= 0
+                    ? 'text-cat-green-fg dark:text-cat-green'
+                    : 'text-cat-red-fg dark:text-cat-red'
+                }`}
+              >
                 {formatCurrency(data.totals.net, true)}
-              </b>
-            </span>
+              </span>
+            </div>
           </footer>
         </>
       )}

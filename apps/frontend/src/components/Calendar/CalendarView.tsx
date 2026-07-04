@@ -22,11 +22,34 @@ export function CalendarView({
   const dow = (firstDate.getUTCDay() + 6) % 7; // Sun(0)→6, Mon(1)→0, ...
   const padding = Array.from({ length: dow });
 
+  const dayNames = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+
   return (
     <div className="h-full flex flex-col rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden">
-      <div className="shrink-0 grid grid-cols-7 text-[10px] md:text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500 px-2 md:px-3 pt-2 md:pt-3">
-        {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((d) => (
-          <div key={d} className="px-2 py-0.5">{d}</div>
+      <div className="shrink-0 flex items-center gap-4 px-3 md:px-4 pt-2 pb-1 text-[11px] text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800/60">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block w-3 h-1 rounded bg-cat-teal" />
+          Revenu
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block w-3 h-1 rounded bg-cat-red" />
+          Dépense
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block w-3 h-0 border-t-2 border-dashed border-cat-amber" />
+          Prévu
+        </span>
+      </div>
+      <div className="shrink-0 grid grid-cols-7 text-[11px] md:text-xs font-bold uppercase tracking-widest px-2 md:px-3 pt-2 md:pt-3">
+        {dayNames.map((d, i) => (
+          <div
+            key={d}
+            className={`px-2 py-0.5 ${
+              i >= 5 ? 'text-brand-500 dark:text-brand-300' : 'text-gray-500 dark:text-gray-400'
+            }`}
+          >
+            {d}
+          </div>
         ))}
       </div>
       {/* auto-rows-fr = every row gets an equal share of the remaining height,

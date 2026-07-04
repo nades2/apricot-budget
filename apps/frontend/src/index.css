@@ -4,6 +4,54 @@
 
 :root {
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+
+  /* Chart palette — light mode.
+     CashflowChart references these via inline `style` on SVG elements so the
+     same component adapts to the theme without a JS branch. Keep the semantic
+     names (baseline/threshold/scenario) so consumers don't need to know the
+     underlying hex. */
+  --chart-baseline: #1D9E75;
+  --chart-baseline-fill: #E1F5EE;
+  --chart-below-fill: #FCEBEB;
+  --chart-threshold: #E24B4A;
+  --chart-scenario: #8B5CF6;
+  --chart-today: #5DCAA5;
+  --chart-today-text: #085041;
+  --chart-hover-ring: #FFFFFF;
+
+  /* Scenario what-if palette — aligne visuellement le panneau, les boutons et
+     l overlay du chart. En light on garde le violet fonce lisible sur blanc; en
+     dark on bascule vers un violet clair qui a le meme contraste que la ligne
+     "scenario" du chart. */
+  --scenario-fg: #3C3489;
+  --scenario-soft: #EEEDFE;
+  --scenario-soft-hover: #D9D5FB;
+  --scenario-strong: #7F77DD;
+  --scenario-strong-text: #FFFFFF;
+}
+
+html.dark {
+  /* Chart palette — dark mode.
+     Line colors bump up in luminance so they read against dark bg; fills drop
+     to low-opacity tints of the accent to avoid the "washed-out pale swatch"
+     effect that light-mode bg colors produce on dark backgrounds. */
+  --chart-baseline: #4EE08A;
+  --chart-baseline-fill: rgba(93, 202, 165, 0.18);
+  --chart-below-fill: rgba(255, 139, 139, 0.16);
+  --chart-threshold: #FF8B8B;
+  --chart-scenario: #B4A0FF;
+  --chart-today: #4EE08A;
+  --chart-today-text: #062821;
+  --chart-hover-ring: #0F1216;
+
+  /* Scenario what-if palette — dark. Le violet fonce du light mode devient
+     illisible sur fond noir; on prend le meme #B4A0FF que la ligne scenario du
+     chart pour que panneau et courbe restent visuellement lies. */
+  --scenario-fg: #B4A0FF;
+  --scenario-soft: rgba(180, 160, 255, 0.14);
+  --scenario-soft-hover: rgba(180, 160, 255, 0.24);
+  --scenario-strong: #B4A0FF;
+  --scenario-strong-text: #1A1240;
 }
 
 html, body { height: 100%; margin: 0; font-family: var(--font-sans); }

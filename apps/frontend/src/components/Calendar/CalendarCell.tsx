@@ -6,9 +6,15 @@ export type ViewMode = 'real' | 'planned' | 'combined';
 /**
  * One day in the calendar grid. Renders three kinds of rows depending on the
  * view mode:
- *   • real transactions (solid style)
+ *   • real transactions (solid style — colored left border + soft bg)
  *   • matched actuals (solid + delta badge vs. planned)
  *   • ghost planned items (dashed border, italic, opacity 60%)
+ *
+ * Visual hierarchy tuned for scan-ability:
+ *   day number (largest) > day total (medium) > chips (smallest).
+ * Weekends get a subtle warm tint; empty cells get a dashed border so the eye
+ * distinguishes "no activity" from "packed day". The first day of a new month
+ * shows an orange month badge next to the number so month rollovers pop.
  */
 export function CalendarCell({
   day,
@@ -20,7 +26,14 @@ export function CalendarCell({
   onClick?: (date: string) => void;
 }) {
   const isToday = day.date === isoToday();
-  const net = Number(day.net);
+  const d = new Date(day.date + 'T00:00:00Z');
+  const dow = d.getUTCDay(); // 0=Sun, 6=Sat
+  const isWeekend = dow === 0 || dow === 6;
+  const dom = d.getUTCDate();
+  const isMonthStart = dom === 1;
+  const monthShort = new Intl.DateTimeFormat('fr-CA', { month: 'short', timeZone: 'UTC' })
+    .format(d)
+    .replace('.', '');
 
   // Filter what shows up based on the view toggle.
   const showActuals = mode !== 'planned';
@@ -30,26 +43,58 @@ export function CalendarCell({
 
   const hasSomething = visibleTx.length + visibleGhosts.length > 0;
   const clickable = hasSomething && !!onClick;
+  const isEmpty = !hasSomething;
 
   // Compute the corner label based on mode.
   const cornerLabel = computeCorner(day, mode);
+
+  // Cell background — layered so today > weekend > empty > default.
+  const cellBg = isToday
+    ? 'bg-cat-teal-bg/50 dark:bg-cat-teal-fg/15'
+    : isEmpty
+      ? 'bg-transparent'
+      : isWeekend
+        ? 'bg-brand-50/60 dark:bg-gray-900/70'
+        : 'bg-gray-50 dark:bg-gray-900/50';
+
+  // Border — today stronger, empty dashed, else solid.
+  const cellBorder = isToday
+    ? 'border-2 border-cat-teal'
+    : isEmpty
+      ? 'border border-dashed border-gray-200/70 dark:border-gray-800/70'
+      : 'border border-gray-200 dark:border-gray-800';
 
   return (
     <button
       type="button"
       onClick={clickable ? () => onClick!(day.date) : undefined}
       disabled={!clickable}
-      className={`text-left rounded-md md:rounded-lg border flex flex-col gap-0.5 md:gap-1 overflow-hidden bg-gray-50 dark:bg-gray-900/50 transition
+      className={`text-left rounded-md md:rounded-lg flex flex-col gap-1 overflow-hidden transition
         min-h-0 p-1.5 md:p-2
-        ${isToday ? 'border-cat-teal ring-1 ring-cat-teal-bg' : 'border-gray-200 dark:border-gray-800'}
+        ${cellBg} ${cellBorder}
         ${clickable ? 'hover:border-gray-400 dark:hover:border-gray-600 hover:bg-white dark:hover:bg-gray-800 cursor-pointer' : 'cursor-default'}`}
     >
-      <div className="flex items-baseline justify-between">
-        <span className={`text-sm md:text-base lg:text-lg font-medium ${isToday ? 'text-cat-teal-fg' : 'text-gray-700 dark:text-gray-300'}`}>
-          {dayOfMonth(day.date)}
+      <div className="flex items-baseline justify-between gap-1">
+        <span className="flex items-baseline gap-1 min-w-0">
+          {isMonthStart && (
+            <span className="shrink-0 text-[9px] md:text-[10px] font-bold uppercase tracking-wider bg-brand-300 text-white px-1 py-0.5 rounded leading-none">
+              {monthShort}
+            </span>
+          )}
+          <span
+            className={`font-bold leading-none ${
+              isEmpty
+                ? 'text-gray-400 dark:text-gray-600 text-base md:text-lg'
+                : isToday
+                  ? 'text-cat-teal-fg dark:text-cat-teal text-lg md:text-xl lg:text-2xl'
+                  : 'text-gray-900 dark:text-gray-100 text-lg md:text-xl lg:text-2xl'
+            }`}
+          >
+            {dayOfMonth(day.date)}
+          </span>
         </span>
         {cornerLabel && (
-          <span className={`text-xs md:text-sm tabular-nums font-medium ${cornerLabel.className}`}>
+          <span className={`text-xs md:text-sm tabular-nums font-semibold shrink-0 ${cornerLabel.className}`}>
             {cornerLabel.text}
           </span>
         )}
@@ -59,7 +104,9 @@ export function CalendarCell({
         {visibleTx.map((tx) => <TxRow key={tx.id} tx={tx} />)}
         {visibleGhosts.map((g) => <GhostRow key={g.budgetItemId} ghost={g} />)}
         {day.overflowCount > 0 && (
-          <span className="text-[10px] md:text-xs text-gray-400 dark:text-gray-600 italic px-1 shrink-0">+ {day.overflowCount} autres</span>
+          <span className="text-[11px] md:text-xs text-gray-500 dark:text-gray-400 px-1 shrink-0 font-medium">
+            + {day.overflowCount} autres
+          </span>
         )}
       </div>
     </button>
@@ -73,18 +120,26 @@ export function CalendarCell({
 function TxRow({ tx }: { tx: CalendarTx }) {
   const amt = Number(tx.amount);
   const isCredit = amt > 0;
-  const color = tx.category?.color ?? 'gray';
-  const bgClass = isCredit ? 'bg-cat-teal-bg text-cat-teal-fg' : `bg-cat-${color}-bg text-cat-${color}-fg`;
+  // Credits always use teal so income reads as income at a glance,
+  // regardless of the source category's assigned color.
+  const color = isCredit ? 'teal' : (tx.category?.color ?? 'gray');
   const label = tx.category?.name ?? tx.description;
+  const icon = tx.category?.icon;
   const mp = tx.matchedPlanned;
 
   return (
-    <div className={`flex justify-between items-center gap-1.5 rounded px-1.5 md:px-2 py-0.5 md:py-1 text-xs md:text-[13px] ${bgClass}`}>
-      <span className="truncate flex items-center gap-1">
-        {mp && <span title={`Réconcilié avec "${mp.name}"`}>🎯</span>}
+    <div
+      className={`flex justify-between items-center gap-1.5 rounded pl-1.5 pr-1.5 md:pl-2 md:pr-2 py-0.5 md:py-1 text-xs md:text-[13px]
+        border-l-[3px] border-cat-${color}
+        bg-cat-${color}-bg text-cat-${color}-fg
+        dark:bg-cat-${color}/15 dark:text-cat-${color}`}
+    >
+      <span className="truncate flex items-center gap-1 min-w-0">
+        {mp && <span title={`Réconcilié avec "${mp.name}"`} className="shrink-0">🎯</span>}
+        {icon && <i className={`ti ${icon} text-[11px] md:text-xs shrink-0 opacity-75`} aria-hidden="true" />}
         <span className="truncate">{label}</span>
       </span>
-      <span className="tabular-nums font-medium shrink-0 flex items-center gap-1">
+      <span className="tabular-nums font-semibold shrink-0 flex items-center gap-1">
         {isCredit ? '+' : ''}{formatCurrency(tx.amount)}
         {mp && <DeltaBadge delta={mp.delta} status={mp.deltaStatus} />}
       </span>
@@ -96,17 +151,21 @@ function GhostRow({ ghost }: { ghost: PlannedGhost }) {
   const color = ghost.categoryColor ?? 'gray';
   const isIncome = ghost.direction === 'INCOME';
   const sign = isIncome ? '+' : '−';
+  const icon = ghost.categoryIcon;
 
   return (
     <div
-      className={`flex justify-between items-center gap-1.5 rounded px-1.5 md:px-2 py-0.5 md:py-1 text-xs md:text-[13px] italic opacity-60 border border-dashed border-cat-${color}-fg/40 bg-cat-${color}-bg/40`}
+      className={`flex justify-between items-center gap-1.5 rounded pl-1.5 pr-1.5 md:pl-2 md:pr-2 py-0.5 md:py-1 text-xs md:text-[13px]
+        border-l-[3px] border-dashed border-cat-${color} bg-transparent
+        text-cat-${color}-fg dark:text-cat-${color} opacity-80`}
       title={`Prévu · ${ghost.name}`}
     >
-      <span className="truncate flex items-center gap-1">
-        <span className="shrink-0">◷</span>
+      <span className="truncate flex items-center gap-1 min-w-0">
+        <span className="shrink-0 opacity-70">◷</span>
+        {icon && <i className={`ti ${icon} text-[11px] md:text-xs shrink-0 opacity-75`} aria-hidden="true" />}
         <span className="truncate">{ghost.name}</span>
       </span>
-      <span className={`tabular-nums font-medium shrink-0 text-cat-${color}-fg`}>
+      <span className="tabular-nums font-semibold shrink-0">
         {sign}{formatCurrency(ghost.plannedAmount)}
       </span>
     </div>
@@ -115,10 +174,19 @@ function GhostRow({ ghost }: { ghost: PlannedGhost }) {
 
 function DeltaBadge({ delta, status }: { delta: string; status: 'ok' | 'over' | 'under' }) {
   const n = Number(delta);
-  if (Math.abs(n) < 0.005) return <span className="text-[9px] text-cat-green-fg" title="Écart nul">✓</span>;
-  const cls = status === 'over' ? 'text-cat-red-fg' : status === 'under' ? 'text-cat-teal-fg' : 'text-cat-green-fg';
+  if (Math.abs(n) < 0.005) {
+    return (
+      <span className="text-[10px] text-cat-green-fg dark:text-cat-green" title="Écart nul">✓</span>
+    );
+  }
+  const cls =
+    status === 'over'
+      ? 'text-cat-red-fg dark:text-cat-red'
+      : status === 'under'
+        ? 'text-cat-teal-fg dark:text-cat-teal'
+        : 'text-cat-green-fg dark:text-cat-green';
   return (
-    <span className={`text-[9px] ${cls}`} title={`Écart vs. prévu`}>
+    <span className={`text-[10px] ${cls}`} title={`Écart vs. prévu`}>
       ({n > 0 ? '+' : ''}{formatCurrency(delta)})
     </span>
   );
@@ -139,7 +207,7 @@ function computeCorner(day: CalendarDay, mode: ViewMode): { text: string; classN
     if (day.txCount === 0) return null;
     return {
       text: `${realNet >= 0 ? '+' : ''}${formatCurrency(realNet)}`,
-      className: realNet >= 0 ? 'text-cat-green-fg' : 'text-cat-red-fg',
+      className: realNet >= 0 ? 'text-cat-green-fg dark:text-cat-green' : 'text-cat-red-fg dark:text-cat-red',
     };
   }
 
@@ -147,7 +215,7 @@ function computeCorner(day: CalendarDay, mode: ViewMode): { text: string; classN
     if (day.plannedGhosts.length === 0) return null;
     return {
       text: `${plannedNet >= 0 ? '+' : ''}${formatCurrency(plannedNet)}`,
-      className: 'text-gray-500 italic',
+      className: 'text-gray-500 dark:text-gray-400 italic',
     };
   }
 
@@ -156,17 +224,17 @@ function computeCorner(day: CalendarDay, mode: ViewMode): { text: string; classN
   if (day.plannedGhosts.length === 0) {
     return {
       text: `${realNet >= 0 ? '+' : ''}${formatCurrency(realNet)}`,
-      className: realNet >= 0 ? 'text-cat-green-fg' : 'text-cat-red-fg',
+      className: realNet >= 0 ? 'text-cat-green-fg dark:text-cat-green' : 'text-cat-red-fg dark:text-cat-red',
     };
   }
   if (day.txCount === 0) {
     return {
       text: `~ ${plannedNet >= 0 ? '+' : ''}${formatCurrency(plannedNet)}`,
-      className: 'text-gray-500 italic',
+      className: 'text-gray-500 dark:text-gray-400 italic',
     };
   }
   return {
     text: `${realNet >= 0 ? '+' : ''}${formatCurrency(realNet)}`,
-    className: realNet >= 0 ? 'text-cat-green-fg' : 'text-cat-red-fg',
+    className: realNet >= 0 ? 'text-cat-green-fg dark:text-cat-green' : 'text-cat-red-fg dark:text-cat-red',
   };
 }

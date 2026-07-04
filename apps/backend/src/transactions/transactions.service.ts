@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
+import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { QueryTransactionsDto } from './dto/query-transactions.dto';
 
 @Injectable()
@@ -55,6 +56,35 @@ export class TransactionsService {
         notes: dto.notes,
         externalId: dto.externalId,
       },
+    });
+  }
+
+  /**
+   * Modifier une transaction existante — pour l instant se limite a
+   * categoryId et notes. Verifie que la transaction appartient au user.
+   */
+  async update(userId: string, id: string, dto: UpdateTransactionDto) {
+    await this.findOne(userId, id);
+
+    // Si categoryId est fourni ET non null, verifier qu elle appartient au
+    // user (ou est systeme) — evite les fuites cross-tenant.
+    if (dto.categoryId) {
+      const cat = await this.prisma.category.findFirst({
+        where: {
+          id: dto.categoryId,
+          OR: [{ userId }, { userId: null }],
+        },
+      });
+      if (!cat) throw new NotFoundException(`Categorie ${dto.categoryId} invalide`);
+    }
+
+    return this.prisma.transaction.update({
+      where: { id },
+      data: {
+        ...(dto.categoryId !== undefined ? { categoryId: dto.categoryId } : {}),
+        ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
+      },
+      include: { category: true, account: { select: { id: true, name: true, type: true } } },
     });
   }
 

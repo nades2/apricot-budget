@@ -1,7 +1,26 @@
 /** @type {import('tailwindcss').Config} */
+const CAT_COLORS = ['coral', 'teal', 'purple', 'pink', 'amber', 'green', 'red', 'blue', 'gray'];
+
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   darkMode: 'class',
+  // The calendar chips build class names dynamically (e.g. `border-cat-${color}`)
+  // based on the category assigned to each transaction, so the JIT scanner can't
+  // see them. Safelist every combo we use for chips + backgrounds + text.
+  //
+  // `/15` variants power the dark-mode chip fill: instead of the pale light-mode
+  // *-bg color (which reads as a solid white block on dark bg), we use the base
+  // hue at 15% opacity for an atmospheric tint.
+  safelist: [
+    ...CAT_COLORS.flatMap((c) => [
+      `border-cat-${c}`,
+      `bg-cat-${c}`,
+      `bg-cat-${c}/15`,
+      `bg-cat-${c}-bg`,
+      `text-cat-${c}`,
+      `text-cat-${c}-fg`,
+    ]),
+  ],
   theme: {
     extend: {
       colors: {
