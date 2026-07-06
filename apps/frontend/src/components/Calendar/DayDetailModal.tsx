@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, Category, CategoryDirection } from '../../lib/api';
+import {
+  api,
+  Category,
+  CategoryDirection,
+  OverflowItem,
+  PlannedGhost,
+} from '../../lib/api';
 import { formatCurrency } from '../../lib/format';
 
 type TxDetail = {
@@ -21,9 +27,20 @@ type TxDetail = {
 
 export function DayDetailModal({
   date,
+  plannedGhosts = [],
+  overflowItems = [],
   onClose,
 }: {
   date: string;
+  /** Planned occurrences for that day (from the calendar response). */
+  plannedGhosts?: PlannedGhost[];
+  /**
+   * Items that overflowed the cell's `topPerDay` cap. Backend already lists
+   * their name + signed amount; some may be real transactions (also in the
+   * `data` list below), others are ghosts (already in `plannedGhosts`). We
+   * still show a small "reste tronqué" block for parity.
+   */
+  overflowItems?: OverflowItem[];
   onClose: () => void;
 }) {
   const { data, isLoading, error } = useQuery({
@@ -65,7 +82,15 @@ export function DayDetailModal({
               {formatDate(date)}
             </h2>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              {data ? `${data.length} transaction${data.length > 1 ? 's' : ''}` : ''}
+              {data
+                ? `${data.length} transaction${data.length > 1 ? 's' : ''}`
+                : ''}
+              {plannedGhosts.length > 0 && (
+                <>
+                  {data && data.length > 0 ? ' · ' : ''}
+                  {plannedGhosts.length} prévu{plannedGhosts.length > 1 ? 's' : ''}
+                </>
+              )}
             </p>
           </div>
           <button
@@ -81,37 +106,113 @@ export function DayDetailModal({
           {isLoading && <p className="p-4 text-sm text-gray-500 dark:text-gray-400">Chargement...</p>}
           {error && <p className="p-4 text-sm text-red-600">Erreur : {(error as Error).message}</p>}
 
-          {data && data.length === 0 && (
+          {plannedGhosts.length > 0 && (
+            <section>
+              <h3 className="px-4 pt-3 pb-1 text-[11px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
+                Prévu
+              </h3>
+              <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+                {plannedGhosts.map((g) => (
+                  <GhostItem key={g.budgetItemId} ghost={g} />
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {data && data.length === 0 && plannedGhosts.length === 0 && (
             <p className="p-8 text-center text-sm text-gray-400 dark:text-gray-500">
               Aucune transaction ce jour-la.
             </p>
           )}
 
           {data && data.length > 0 && (
-            <ul className="divide-y divide-gray-100 dark:divide-gray-800">
-              {data.map((tx) => (
-                <TxItem key={tx.id} tx={tx} categories={categories ?? []} dayDate={date} />
-              ))}
-            </ul>
+            <section>
+              {plannedGhosts.length > 0 && (
+                <h3 className="px-4 pt-3 pb-1 text-[11px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
+                  Transactions
+                </h3>
+              )}
+              <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+                {data.map((tx) => (
+                  <TxItem key={tx.id} tx={tx} categories={categories ?? []} dayDate={date} />
+                ))}
+              </ul>
+            </section>
           )}
+
+          {/*
+            Overflow items are usually already covered by the two lists above
+            (they were sliced off `transactions` / `plannedGhosts` in the cell,
+            but we're not applying that cap in the modal). We only surface
+            them as a fallback if the calendar response was itself capped —
+            e.g. a very busy day where topPerDay < true count. Rare, but keeps
+            the guarantee that opening a day never hides anything.
+          */}
+          {overflowItems.length > 0 &&
+            data &&
+            data.length + plannedGhosts.length < overflowItems.length && (
+              <section className="border-t border-gray-100 dark:border-gray-800">
+                <h3 className="px-4 pt-3 pb-1 text-[11px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
+                  Autres (tronqués)
+                </h3>
+                <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {overflowItems.map((it, i) => (
+                    <li key={i} className="px-4 py-2 flex items-center gap-3 text-sm">
+                      <span className="text-gray-400 dark:text-gray-500 text-xs shrink-0">
+                        {it.kind === 'ghost' ? 'Prévu' : 'Tx'}
+                      </span>
+                      <span className="flex-1 truncate text-gray-900 dark:text-gray-100">
+                        {it.name}
+                      </span>
+                      <span
+                        className={`tabular-nums font-medium ${
+                          Number(it.amountSigned) >= 0
+                            ? 'text-cat-green-fg dark:text-cat-green'
+                            : 'text-gray-900 dark:text-gray-100'
+                        }`}
+                      >
+                        {Number(it.amountSigned) >= 0 ? '+' : ''}
+                        {formatCurrency(it.amountSigned, true)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
         </div>
 
-        {data && data.length > 0 && (
-          <footer className="p-3 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/40 flex gap-4 text-xs text-gray-600 dark:text-gray-400">
-            <span>
-              <span className="text-cat-red-fg font-medium">- {formatCurrency(debit, true)}</span>
-              <span className="ml-1 text-gray-500 dark:text-gray-400">depenses</span>
-            </span>
-            <span>
-              <span className="text-cat-green-fg font-medium">+ {formatCurrency(credit, true)}</span>
-              <span className="ml-1 text-gray-500 dark:text-gray-400">revenus</span>
-            </span>
-            <span className="ml-auto">
-              Net :{' '}
-              <b className={credit - debit >= 0 ? 'text-cat-green-fg' : 'text-cat-red-fg'}>
-                {formatCurrency(credit - debit, true)}
-              </b>
-            </span>
+        {((data && data.length > 0) || plannedGhosts.length > 0) && (
+          <footer className="p-3 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/40 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-400">
+            {data && data.length > 0 && (
+              <>
+                <span>
+                  <span className="text-cat-red-fg font-medium">- {formatCurrency(debit, true)}</span>
+                  <span className="ml-1 text-gray-500 dark:text-gray-400">depenses</span>
+                </span>
+                <span>
+                  <span className="text-cat-green-fg font-medium">+ {formatCurrency(credit, true)}</span>
+                  <span className="ml-1 text-gray-500 dark:text-gray-400">revenus</span>
+                </span>
+                <span>
+                  Net :{' '}
+                  <b className={credit - debit >= 0 ? 'text-cat-green-fg' : 'text-cat-red-fg'}>
+                    {formatCurrency(credit - debit, true)}
+                  </b>
+                </span>
+              </>
+            )}
+            {plannedGhosts.length > 0 && (
+              <span className="ml-auto italic">
+                Prévu net :{' '}
+                <b
+                  className={
+                    plannedNet(plannedGhosts) >= 0 ? 'text-cat-green-fg' : 'text-cat-red-fg'
+                  }
+                >
+                  {formatCurrency(plannedNet(plannedGhosts), true)}
+                </b>
+              </span>
+            )}
           </footer>
         )}
       </div>
@@ -227,6 +328,54 @@ function TxItem({
         {isCredit ? '+' : ''}{formatCurrency(tx.amount, true)}
       </div>
     </li>
+  );
+}
+
+/**
+ * Ligne "Prévu" : item budgétaire attendu à cette date mais pas encore
+ * réconcilié avec une transaction. Rendu en italique + bordure dashed pour
+ * matcher le style des ghosts sur le calendrier.
+ */
+function GhostItem({ ghost }: { ghost: PlannedGhost }) {
+  const color = ghost.categoryColor ?? 'gray';
+  const isIncome = ghost.direction === 'INCOME';
+  const sign = isIncome ? '+' : '-';
+  return (
+    <li className="px-4 py-2.5 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition">
+      <span
+        className={`w-8 h-8 rounded-md flex items-center justify-center text-xs font-medium shrink-0 border-2 border-dashed border-cat-${color} bg-cat-${color}-bg/60 text-cat-${color}-fg dark:bg-cat-${color}/15 dark:text-cat-${color}`}
+        title="Prévu — pas encore réalisé"
+      >
+        {ghost.name[0]?.toUpperCase() ?? '?'}
+      </span>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm truncate text-gray-900 dark:text-gray-100 font-medium italic">
+          {ghost.name}
+        </div>
+        <div className="text-xs text-gray-500 dark:text-gray-400 flex gap-1.5 items-center">
+          <span>Prévu</span>
+          <span className="text-gray-300 dark:text-gray-600">&middot;</span>
+          <span>{ghost.categoryName}</span>
+        </div>
+      </div>
+      <div
+        className={`text-sm tabular-nums font-medium italic ${
+          isIncome ? 'text-cat-green-fg dark:text-cat-green' : 'text-gray-900 dark:text-gray-100'
+        }`}
+      >
+        {sign}
+        {formatCurrency(ghost.plannedAmount, true)}
+      </div>
+    </li>
+  );
+}
+
+/** Solde net prévu pour un ensemble d'occurrences (revenus - dépenses). */
+function plannedNet(ghosts: PlannedGhost[]): number {
+  return ghosts.reduce(
+    (sum, g) =>
+      sum + (g.direction === 'INCOME' ? 1 : -1) * Number(g.plannedAmount),
+    0,
   );
 }
 

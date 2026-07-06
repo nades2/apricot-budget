@@ -43,6 +43,17 @@ export type PlannedGhost = {
   plannedAmount: string;              // positive
 };
 
+/**
+ * Compact representation of a truncated cell entry — enough to show in a
+ * tooltip / expandable list so the user can tell what was hidden by the
+ * `topPerDay` slice.
+ */
+export type OverflowItem = {
+  kind: 'tx' | 'ghost';
+  name: string;
+  amountSigned: string;    // signed Decimal, stringified (- for expense, + for income)
+};
+
 export type CalendarDay = {
   date: string;
   totalDebit: string;
@@ -51,6 +62,7 @@ export type CalendarDay = {
   txCount: number;
   transactions: CalendarTransaction[];
   overflowCount: number;
+  overflowItems: OverflowItem[];
   plannedGhosts: PlannedGhost[];
 };
 
@@ -209,6 +221,7 @@ export class CalendarService {
         txCount: 0,
         transactions: [],
         overflowCount: 0,
+        overflowItems: [],
         plannedGhosts: [],
       });
     }
@@ -279,7 +292,24 @@ export class CalendarService {
         // Keep transactions first, then ghosts, respecting the slot count.
         const keepTx = Math.min(day.transactions.length, topPerDay);
         const keepGhost = Math.max(0, topPerDay - keepTx);
-        day.overflowCount = totalEntries - keepTx - keepGhost;
+
+        // Capture the names/amounts of the items about to be dropped so the
+        // UI can show them in a tooltip on the "+ N autres" chip.
+        const overflowTx = day.transactions.slice(keepTx).map<OverflowItem>((tx) => ({
+          kind: 'tx',
+          name: tx.category?.name ?? tx.description,
+          amountSigned: tx.amount,
+        }));
+        const overflowGhost = day.plannedGhosts.slice(keepGhost).map<OverflowItem>((g) => ({
+          kind: 'ghost',
+          name: g.name,
+          amountSigned:
+            g.direction === 'INCOME'
+              ? g.plannedAmount
+              : new Prisma.Decimal(g.plannedAmount).negated().toString(),
+        }));
+        day.overflowItems = [...overflowTx, ...overflowGhost];
+        day.overflowCount = day.overflowItems.length;
         day.transactions = day.transactions.slice(0, keepTx);
         day.plannedGhosts = day.plannedGhosts.slice(0, keepGhost);
       }

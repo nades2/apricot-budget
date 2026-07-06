@@ -221,11 +221,54 @@ export class CsvImportService {
     });
   }
 
-  list(userId: string) {
-    return this.prisma.csvImport.findMany({
+  /**
+   * Liste tous les imports de l'utilisateur, décorés avec :
+   *   - `account: { id, name }`   → nom du compte cible
+   *   - `txCount`                 → nombre de transactions encore rattachées
+   *   - `minPostedAt` / `maxPostedAt` → fenêtre couverte par les transactions
+   *
+   * Pour un import CONFIRMED sans transactions restantes (déjà rollback partiel
+   * ou dédup total), txCount peut valoir 0 — l'UI affiche alors une période vide.
+   */
+  async list(userId: string) {
+    const imports = await this.prisma.csvImport.findMany({
       where: { userId },
       orderBy: { uploadedAt: 'desc' },
       include: { account: { select: { id: true, name: true } } },
+    });
+
+    if (imports.length === 0) return [];
+
+    // Une seule requête d'agrégat pour tous les imports du user.
+    const aggregates = await this.prisma.transaction.groupBy({
+      by: ['csvImportId'],
+      where: {
+        userId,
+        csvImportId: { in: imports.map((i) => i.id) },
+      },
+      _count: { _all: true },
+      _min: { postedAt: true },
+      _max: { postedAt: true },
+    });
+    const byImportId = new Map(
+      aggregates.map((a) => [
+        a.csvImportId as string,
+        {
+          txCount: a._count._all,
+          minPostedAt: a._min.postedAt,
+          maxPostedAt: a._max.postedAt,
+        },
+      ]),
+    );
+
+    return imports.map((imp) => {
+      const agg = byImportId.get(imp.id);
+      return {
+        ...imp,
+        txCount: agg?.txCount ?? 0,
+        minPostedAt: agg?.minPostedAt?.toISOString().slice(0, 10) ?? null,
+        maxPostedAt: agg?.maxPostedAt?.toISOString().slice(0, 10) ?? null,
+      };
     });
   }
 }

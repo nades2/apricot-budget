@@ -96,6 +96,11 @@ export type CsvImport = {
   errors: unknown;
   uploadedAt: string;
   confirmedAt: string | null;
+  /** Décorateurs renvoyés par `GET /csv-imports` uniquement. */
+  account?: { id: string; name: string };
+  txCount?: number;              // nb de transactions encore rattachées
+  minPostedAt?: string | null;   // YYYY-MM-DD
+  maxPostedAt?: string | null;   // YYYY-MM-DD
 };
 
 export type Category = {
@@ -223,6 +228,12 @@ export type PlannedGhost = {
   plannedAmount: string;
 };
 
+export type OverflowItem = {
+  kind: 'tx' | 'ghost';
+  name: string;
+  amountSigned: string;              // signed Decimal string
+};
+
 export type CalendarDay = {
   date: string;                      // YYYY-MM-DD
   totalDebit: string;
@@ -231,6 +242,7 @@ export type CalendarDay = {
   txCount: number;
   transactions: CalendarTx[];
   overflowCount: number;
+  overflowItems: OverflowItem[];
   plannedGhosts: PlannedGhost[];
 };
 

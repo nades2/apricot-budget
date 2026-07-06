@@ -20,6 +20,6 @@ export class QueryCalendarDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(10)
+  @Max(50)
   topPerDay?: number = 3;
 }

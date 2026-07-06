@@ -1,4 +1,5 @@
 import { ImportWizard } from '../components/Import/ImportWizard';
+import { ImportHistory } from '../components/Import/ImportHistory';
 
 export function ImportPage() {
   return (
@@ -12,6 +13,7 @@ export function ImportPage() {
         </p>
       </header>
       <ImportWizard />
+      <ImportHistory />
     </div>
   );
 }

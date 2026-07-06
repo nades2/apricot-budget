@@ -1,4 +1,4 @@
-import { CalendarDay, CalendarTx, PlannedGhost } from '../../lib/api';
+import { CalendarDay, CalendarTx, OverflowItem, PlannedGhost } from '../../lib/api';
 import { dayOfMonth, formatCurrency, isoToday } from '../../lib/format';
 
 export type ViewMode = 'real' | 'planned' | 'combined';
@@ -104,7 +104,10 @@ export function CalendarCell({
         {visibleTx.map((tx) => <TxRow key={tx.id} tx={tx} />)}
         {visibleGhosts.map((g) => <GhostRow key={g.budgetItemId} ghost={g} />)}
         {day.overflowCount > 0 && (
-          <span className="text-[11px] md:text-xs text-gray-500 dark:text-gray-400 px-1 shrink-0 font-medium">
+          <span
+            className="text-[11px] md:text-xs text-gray-500 dark:text-gray-400 px-1 shrink-0 font-medium"
+            title={overflowTooltip(day.overflowItems, day.overflowCount)}
+          >
             + {day.overflowCount} autres
           </span>
         )}
@@ -129,7 +132,7 @@ function TxRow({ tx }: { tx: CalendarTx }) {
 
   return (
     <div
-      className={`flex justify-between items-center gap-1.5 rounded pl-1.5 pr-1.5 md:pl-2 md:pr-2 py-0.5 md:py-1 text-xs md:text-[13px]
+      className={`shrink-0 flex justify-between items-center gap-1.5 rounded pl-1.5 pr-1.5 md:pl-2 md:pr-2 py-0.5 md:py-1 text-xs md:text-[13px]
         border-l-[3px] border-cat-${color}
         bg-cat-${color}-bg text-cat-${color}-fg
         dark:bg-cat-${color}/15 dark:text-cat-${color}`}
@@ -155,7 +158,7 @@ function GhostRow({ ghost }: { ghost: PlannedGhost }) {
 
   return (
     <div
-      className={`flex justify-between items-center gap-1.5 rounded pl-1.5 pr-1.5 md:pl-2 md:pr-2 py-0.5 md:py-1 text-xs md:text-[13px]
+      className={`shrink-0 flex justify-between items-center gap-1.5 rounded pl-1.5 pr-1.5 md:pl-2 md:pr-2 py-0.5 md:py-1 text-xs md:text-[13px]
         border-l-[3px] border-dashed border-cat-${color} bg-transparent
         text-cat-${color}-fg dark:text-cat-${color} opacity-80`}
       title={`Prévu · ${ghost.name}`}
@@ -190,6 +193,23 @@ function DeltaBadge({ delta, status }: { delta: string; status: 'ok' | 'over' | 
       ({n > 0 ? '+' : ''}{formatCurrency(delta)})
     </span>
   );
+}
+
+// -------------------------------------------------------------------------
+//  Overflow tooltip — plain-text list of what the "+N autres" chip hides.
+//  Kept in `title` (native tooltip) so the user can peek without clicking.
+// -------------------------------------------------------------------------
+
+function overflowTooltip(items: OverflowItem[], count: number): string {
+  if (!items || items.length === 0) return `${count} items supplémentaires`;
+  return items
+    .map((it) => {
+      const amt = Number(it.amountSigned);
+      const sign = amt > 0 ? '+' : amt < 0 ? '−' : '';
+      const prefix = it.kind === 'ghost' ? '◷ ' : '';
+      return `${prefix}${it.name} · ${sign}${formatCurrency(Math.abs(amt))}`;
+    })
+    .join('\n');
 }
 
 // -------------------------------------------------------------------------

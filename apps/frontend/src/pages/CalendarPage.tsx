@@ -1,10 +1,18 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, CalendarResponse } from '../lib/api';
 import { formatCurrency, formatRangeLabel, isoToday } from '../lib/format';
 import { CalendarView } from '../components/Calendar/CalendarView';
 import { ViewMode } from '../components/Calendar/CalendarCell';
 import { DayDetailModal } from '../components/Calendar/DayDetailModal';
+
+/**
+ * How many entries we ask the backend to inline per day cell before the rest
+ * spill into `overflowItems`. The visible slot count in a cell is bounded by
+ * cell height, but we want the modal (and the "+ N autres" tooltip) to know
+ * about *everything* planned/spent on that day.
+ */
+const CELL_TOP_PER_DAY = 20;
 
 type Range = 7 | 30;
 
@@ -36,9 +44,20 @@ export function CalendarPage() {
   const { from, to } = computeRange(anchor, range);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['calendar', from, to],
-    queryFn: () => api.get<CalendarResponse>(`/calendar?from=${from}&to=${to}`),
+    queryKey: ['calendar', from, to, CELL_TOP_PER_DAY],
+    queryFn: () =>
+      api.get<CalendarResponse>(
+        `/calendar?from=${from}&to=${to}&topPerDay=${CELL_TOP_PER_DAY}`,
+      ),
   });
+
+  // Day currently shown in the detail modal — retrieved from the calendar
+  // response so we can pass planned ghosts + overflow items into the modal
+  // without an extra round-trip.
+  const selectedDayData = useMemo(
+    () => (data && selectedDay ? data.days.find((d) => d.date === selectedDay) : undefined),
+    [data, selectedDay],
+  );
 
   const isAtToday = anchor === isoToday();
 
@@ -127,7 +146,12 @@ export function CalendarPage() {
       )}
 
       {selectedDay && (
-        <DayDetailModal date={selectedDay} onClose={() => setSelectedDay(null)} />
+        <DayDetailModal
+          date={selectedDay}
+          plannedGhosts={selectedDayData?.plannedGhosts ?? []}
+          overflowItems={selectedDayData?.overflowItems ?? []}
+          onClose={() => setSelectedDay(null)}
+        />
       )}
     </div>
   );
