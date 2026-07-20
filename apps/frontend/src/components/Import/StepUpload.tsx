@@ -8,9 +8,11 @@ export function StepUpload({ onDone }: { onDone: (imp: CsvImport) => void }) {
   const [isDragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Tous les comptes (actifs ET passifs) — on veut pouvoir importer aussi
+  // les relevés de carte de crédit, qui sont typés LIABILITY.
   const { data: accounts } = useQuery({
-    queryKey: ['accounts', 'ASSET'],
-    queryFn: () => api.get<Account[]>('/accounts?type=ASSET'),
+    queryKey: ['accounts', 'all'],
+    queryFn: () => api.get<Account[]>('/accounts'),
   });
 
   const upload = useMutation({
@@ -48,7 +50,7 @@ export function StepUpload({ onDone }: { onDone: (imp: CsvImport) => void }) {
           <option value="">-- Choisir un compte --</option>
           {accounts?.map((a) => (
             <option key={a.id} value={a.id}>
-              {a.name} - {a.institution ?? '-'}
+              {formatAccountOption(a)}
             </option>
           ))}
         </select>
@@ -99,6 +101,14 @@ export function StepUpload({ onDone }: { onDone: (imp: CsvImport) => void }) {
         </div>
       </section>
 
+      {accountId && !file && (
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          Astuce : les comptes de type <em>Carte de crédit</em> attendent un
+          relevé de carte (colonnes différentes du chèques). Le parser dédié
+          arrive en Phase 4 — d&apos;ici là, upload d&apos;un CSV carte échouera.
+        </p>
+      )}
+
       {upload.error && (
         <p className="text-sm text-cat-red-fg bg-cat-red-bg rounded-md px-3 py-2">
           {(upload.error as Error).message}
@@ -119,3 +129,31 @@ export function StepUpload({ onDone }: { onDone: (imp: CsvImport) => void }) {
     </div>
   );
 }
+
+/**
+ * Formatte une entrée du dropdown de sélection de compte :
+ *   "Compte chèque principal · BNC (chèques)"
+ *   "Mastercard Or · BNC (carte de crédit)"
+ * Le suffixe entre parenthèses aide à distinguer les types d'un coup d'oeil,
+ * surtout maintenant qu'on liste actifs ET passifs.
+ */
+function formatAccountOption(a: Account): string {
+  const parts = [a.name];
+  if (a.institution) parts.push(a.institution);
+  const subtypeLabel = SUBTYPE_LABELS[a.subtype] ?? a.subtype;
+  return `${parts.join(' · ')} (${subtypeLabel})`;
+}
+
+const SUBTYPE_LABELS: Record<string, string> = {
+  CHECKING:        'chèques',
+  SAVINGS:         'épargne',
+  INVESTMENT:      'placement',
+  REAL_ESTATE:     'immobilier',
+  VEHICLE:         'véhicule',
+  OTHER_ASSET:     'autre actif',
+  CREDIT_CARD:     'carte de crédit',
+  MORTGAGE:        'hypothèque',
+  LOAN:            'prêt',
+  LINE_OF_CREDIT:  'marge de crédit',
+  OTHER_LIABILITY: 'autre passif',
+};
