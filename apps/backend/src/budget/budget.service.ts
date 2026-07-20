@@ -149,6 +149,10 @@ export class BudgetService {
       // Redo a per-category split — small N, fine.
     }
     // Redo with sign-aware aggregation (cheap; we already have the category ids).
+    // Phase 6.1 : exclut les transactions marquées comme transferts (paiement CC,
+    // virement inter-comptes). Ces mouvements ne représentent pas de vraies
+    // dépenses/revenus catégoriels et gonfleraient artificiellement les
+    // "actuals" d'une catégorie comme "Paiement carte de crédit".
     for (const item of items) {
       // Skip if we already computed this category.
       if (
@@ -158,11 +162,23 @@ export class BudgetService {
       const [posAgg, negAgg] = await Promise.all([
         this.prisma.transaction.aggregate({
           _sum: { amount: true },
-          where: { userId, categoryId: item.categoryId, postedAt: { gte: monthStart, lte: monthEnd }, amount: { gt: 0 } },
+          where: {
+            userId,
+            categoryId: item.categoryId,
+            postedAt: { gte: monthStart, lte: monthEnd },
+            amount: { gt: 0 },
+            linkedTransactionId: null,
+          },
         }),
         this.prisma.transaction.aggregate({
           _sum: { amount: true },
-          where: { userId, categoryId: item.categoryId, postedAt: { gte: monthStart, lte: monthEnd }, amount: { lt: 0 } },
+          where: {
+            userId,
+            categoryId: item.categoryId,
+            postedAt: { gte: monthStart, lte: monthEnd },
+            amount: { lt: 0 },
+            linkedTransactionId: null,
+          },
         }),
       ]);
       actualIncomeByCat.set(item.categoryId, posAgg._sum.amount ?? new Prisma.Decimal(0));
