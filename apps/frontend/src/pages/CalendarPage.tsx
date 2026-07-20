@@ -14,34 +14,58 @@ import { DayDetailModal } from '../components/Calendar/DayDetailModal';
  */
 const CELL_TOP_PER_DAY = 20;
 
-type Range = 7 | 30;
+/**
+ * Deux vues :
+ *   - week  : semaine calendrier dimanche → samedi contenant l'anchor
+ *   - month : 1er jour → dernier jour du mois contenant l'anchor
+ * Le glissement 30j pur a été retiré (2026-07-20) parce que peu utile pour
+ * un budget mensuel ancré aux échéances du 1er.
+ */
+type RangeMode = 'week' | 'month';
 
 /**
- * Compute a range [from, to] of `size` days ending on `anchorIso` inclusive.
- * `anchorIso` is the last day shown (typically "today" or a past reference).
+ * Calcule la fenêtre calendaire [from, to] pour le mode courant, en se basant
+ * sur `anchorIso`. Convention semaine = dimanche à samedi.
  */
-function computeRange(anchorIso: string, size: Range): { from: string; to: string } {
-  const to = new Date(anchorIso + 'T00:00:00Z');
-  const from = new Date(to);
-  from.setUTCDate(from.getUTCDate() - (size - 1));
-  return {
-    from: from.toISOString().slice(0, 10),
-    to: to.toISOString().slice(0, 10),
-  };
+function computeRange(anchorIso: string, rangeMode: RangeMode): { from: string; to: string } {
+  const anchor = new Date(anchorIso + 'T00:00:00Z');
+  if (rangeMode === 'week') {
+    const dow = anchor.getUTCDay(); // 0=Sun ... 6=Sat
+    const from = new Date(anchor);
+    from.setUTCDate(from.getUTCDate() - dow);
+    const to = new Date(from);
+    to.setUTCDate(to.getUTCDate() + 6);
+    return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+  }
+  // month
+  const from = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), 1));
+  const to = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() + 1, 0));
+  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
 }
 
-function shiftIso(iso: string, days: number): string {
-  const d = new Date(iso + 'T00:00:00Z');
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
+/**
+ * Décale l'anchor d'une période complète (une semaine ou un mois entier).
+ * Pour la semaine : ±7 jours. Pour le mois : même jour du mois précédent/suivant,
+ * avec clamp sur le dernier jour du mois cible si nécessaire (31 mars → 28 fév).
+ */
+function shiftAnchor(anchorIso: string, rangeMode: RangeMode, dir: -1 | 1): string {
+  const d = new Date(anchorIso + 'T00:00:00Z');
+  if (rangeMode === 'week') {
+    d.setUTCDate(d.getUTCDate() + 7 * dir);
+    return d.toISOString().slice(0, 10);
+  }
+  // month : cible = 1er jour du mois adjacent, ce qui garantit qu'un clic
+  // "précédent" depuis le 31 juillet nous emmène en juin, pas en août.
+  const target = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + dir, 1));
+  return target.toISOString().slice(0, 10);
 }
 
 export function CalendarPage() {
-  const [range, setRange] = useState<Range>(30);
+  const [rangeMode, setRangeMode] = useState<RangeMode>('month');
   const [anchor, setAnchor] = useState<string>(isoToday());
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [mode, setMode] = useState<ViewMode>('combined');
-  const { from, to } = computeRange(anchor, range);
+  const { from, to } = computeRange(anchor, rangeMode);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['calendar', from, to, CELL_TOP_PER_DAY],
@@ -59,7 +83,12 @@ export function CalendarPage() {
     [data, selectedDay],
   );
 
-  const isAtToday = anchor === isoToday();
+  // "Aujourd'hui" ne compare pas la date brute mais la fenêtre : si le mois
+  // (ou la semaine) courant contient today, on est déjà "à aujourd'hui".
+  const todayRange = useMemo(() => computeRange(isoToday(), rangeMode), [rangeMode]);
+  const isAtToday = from === todayRange.from && to === todayRange.to;
+
+  const shortLabel = rangeMode === 'week' ? 'sem.' : 'mois';
 
   return (
     <div className="h-full flex flex-col overflow-hidden px-4 md:px-6 lg:px-8 2xl:px-12 py-3 md:py-4 max-w-[1900px] mx-auto w-full">
@@ -67,17 +96,17 @@ export function CalendarPage() {
         <div>
           <h1 className="text-xl md:text-2xl font-semibold leading-tight">{formatRangeLabel(from, to)}</h1>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            {range} jours · du {from} au {to}
+            du {from} au {to}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setAnchor(shiftIso(anchor, -range))}
+            onClick={() => setAnchor(shiftAnchor(anchor, rangeMode, -1))}
             className="px-2 py-1 text-xs border border-gray-200 rounded hover:bg-gray-50"
-            title="Période précédente"
+            title={`${shortLabel === 'sem.' ? 'Semaine' : 'Mois'} précédent(e)`}
           >
-            ← {range} j
+            ← {shortLabel}
           </button>
 
           {!isAtToday && (
@@ -90,14 +119,14 @@ export function CalendarPage() {
           )}
 
           <button
-            onClick={() => setAnchor(shiftIso(anchor, range))}
+            onClick={() => setAnchor(shiftAnchor(anchor, rangeMode, 1))}
             className="px-2 py-1 text-xs border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-800"
-            title="Période suivante"
+            title={`${shortLabel === 'sem.' ? 'Semaine' : 'Mois'} suivant(e)`}
           >
-            {range} j →
+            {shortLabel} →
           </button>
 
-          <RangeToggle value={range} onChange={setRange} />
+          <RangeToggle value={rangeMode} onChange={setRangeMode} />
           <ModeToggle value={mode} onChange={setMode} />
         </div>
       </header>
@@ -113,7 +142,7 @@ export function CalendarPage() {
           <footer className="shrink-0 mt-2 md:mt-3 flex gap-6 md:gap-10 flex-wrap">
             <div className="flex flex-col">
               <span className="text-[11px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-medium">
-                Dépenses ({range} j)
+                Dépenses ({shortLabel})
               </span>
               <span className="text-base md:text-lg font-bold tabular-nums text-cat-red-fg dark:text-cat-red">
                 − {formatCurrency(data.totals.debit, true)}
@@ -121,7 +150,7 @@ export function CalendarPage() {
             </div>
             <div className="flex flex-col">
               <span className="text-[11px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-medium">
-                Revenus ({range} j)
+                Revenus ({shortLabel})
               </span>
               <span className="text-base md:text-lg font-bold tabular-nums text-cat-green-fg dark:text-cat-green">
                 + {formatCurrency(data.totals.credit, true)}
@@ -157,20 +186,30 @@ export function CalendarPage() {
   );
 }
 
-function RangeToggle({ value, onChange }: { value: Range; onChange: (r: Range) => void }) {
+function RangeToggle({
+  value,
+  onChange,
+}: {
+  value: RangeMode;
+  onChange: (r: RangeMode) => void;
+}) {
+  const opts: { key: RangeMode; label: string }[] = [
+    { key: 'week', label: 'Semaine' },
+    { key: 'month', label: 'Mois' },
+  ];
   return (
     <div className="inline-flex border border-gray-200 rounded-md overflow-hidden text-xs">
-      {([7, 30] as const).map((r) => (
+      {opts.map((o) => (
         <button
-          key={r}
-          onClick={() => onChange(r)}
+          key={o.key}
+          onClick={() => onChange(o.key)}
           className={`px-3 py-1 ${
-            value === r
+            value === o.key
               ? 'bg-cat-teal-bg text-cat-teal-fg font-medium'
               : 'text-gray-600 hover:bg-gray-50'
           }`}
         >
-          {r} j
+          {o.label}
         </button>
       ))}
     </div>

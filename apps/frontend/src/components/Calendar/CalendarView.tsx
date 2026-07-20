@@ -17,12 +17,13 @@ export function CalendarView({
 }) {
   if (data.days.length === 0) return null;
 
-  // Monday = 0 for our column ordering (fr-CA week starts on Monday).
+  // Sunday = 0 for our column ordering (convention nord-américaine :
+  // dimanche à gauche, samedi à droite).
   const firstDate = new Date(data.days[0].date);
-  const dow = (firstDate.getUTCDay() + 6) % 7; // Sun(0)→6, Mon(1)→0, ...
+  const dow = firstDate.getUTCDay(); // Sun(0), Mon(1), ..., Sat(6)
   const padding = Array.from({ length: dow });
 
-  const dayNames = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+  const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 
   return (
     <div className="h-full flex flex-col rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden">
@@ -45,7 +46,8 @@ export function CalendarView({
           <div
             key={d}
             className={`px-2 py-0.5 ${
-              i >= 5 ? 'text-brand-500 dark:text-brand-300' : 'text-gray-500 dark:text-gray-400'
+              // Weekend highlight : Dim (col 0) et Sam (col 6).
+              i === 0 || i === 6 ? 'text-brand-500 dark:text-brand-300' : 'text-gray-500 dark:text-gray-400'
             }`}
           >
             {d}
