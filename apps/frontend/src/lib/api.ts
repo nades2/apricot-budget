@@ -74,7 +74,8 @@ export type PreviewRow = {
   description: string;
   bankCategory: string;
   amount: string;
-  runningBalance: string;
+  /** null pour le format carte de crédit (pas de colonne Solde). */
+  runningBalance: string | null;
   informational: boolean;
   parseError?: string;
   suggestion: {

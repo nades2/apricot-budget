@@ -54,11 +54,12 @@ export class CsvImportService {
     const suggestions = await this.engine.computeSuggestions(userId, rows);
 
     // Serialize both rows and suggestions into raw_payload (jsonb).
-    // Decimals are stringified to preserve precision through JSON.
+    // Decimals are stringified to preserve precision through JSON. Le solde
+    // est nullable — c'est le cas pour le format carte de crédit.
     const rawPayload = rows.map((r, i) => ({
       ...r,
       amount: r.amount.toString(),
-      runningBalance: r.runningBalance.toString(),
+      runningBalance: r.runningBalance ? r.runningBalance.toString() : null,
       suggestion: suggestions[i],
     }));
 
@@ -108,9 +109,10 @@ export class CsvImportService {
     }
 
     // Reconstitute rows + suggestions from raw_payload.
-    type StoredRow = DesjardinsRow & {
+    // `runningBalance` est sérialisé nullable (le format carte n'en a pas).
+    type StoredRow = Omit<DesjardinsRow, 'amount' | 'runningBalance'> & {
       amount: string;
-      runningBalance: string;
+      runningBalance: string | null;
       suggestion: MappingSuggestion;
     };
     const stored = (imp.rawPayload as unknown as StoredRow[]) ?? [];
@@ -130,7 +132,7 @@ export class CsvImportService {
         postedAt: new Date(row.postedAt),
         description: row.description,
         amount: new Prisma.Decimal(row.amount),
-        importedBalance: new Prisma.Decimal(row.runningBalance),
+        importedBalance: row.runningBalance !== null ? new Prisma.Decimal(row.runningBalance) : null,
         csvImportId: imp.id,
       });
       if (override?.saveAsRule && categoryId) {

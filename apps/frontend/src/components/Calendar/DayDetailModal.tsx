@@ -412,9 +412,22 @@ type Draft = {
   notes: string;
 };
 
+/**
+ * Générateur d'id local — utilisé uniquement pour la clé React des lignes
+ * de l'éditeur split. On évite `crypto.randomUUID()` parce qu'il exige un
+ * contexte sécurisé (HTTPS) et l'app tourne en HTTP sur le LAN. Un compteur
+ * monotone suffit largement : les clés doivent être uniques dans la vie du
+ * composant, rien de plus.
+ */
+let __draftSeq = 0;
+function nextDraftKey(): string {
+  __draftSeq += 1;
+  return `d${Date.now().toString(36)}-${__draftSeq}`;
+}
+
 function makeDraft(categoryId: string | null, absAmount: string): Draft {
   return {
-    key: crypto.randomUUID(),
+    key: nextDraftKey(),
     categoryId,
     amount: absAmount,
     notes: '',
