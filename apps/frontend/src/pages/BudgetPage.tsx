@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, BudgetItem, BudgetReport } from '../lib/api';
 import { VerdictBanner } from '../components/Budget/VerdictBanner';
 import { BudgetLineTable } from '../components/Budget/BudgetLineTable';
+import { UnbudgetedTable } from '../components/Budget/UnbudgetedTable';
 import { AddBudgetItemModal } from '../components/Budget/AddBudgetItemModal';
 
 /** Current month as YYYY-MM in the user's local time. */
@@ -104,6 +105,20 @@ export function BudgetPage() {
             actual={report.expense.actual}
             direction="EXPENSE"
             onEdit={openEdit}
+          />
+
+          <UnbudgetedTable
+            title="Hors budget · Dépenses"
+            lines={report.unbudgetedExpense.lines}
+            total={report.unbudgetedExpense.total}
+            direction="EXPENSE"
+          />
+
+          <UnbudgetedTable
+            title="Hors budget · Revenus"
+            lines={report.unbudgetedIncome.lines}
+            total={report.unbudgetedIncome.total}
+            direction="INCOME"
           />
         </div>
       )}

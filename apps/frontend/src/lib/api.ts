@@ -179,12 +179,28 @@ export type BudgetLine = {
   status: 'ok' | 'over' | 'under' | 'missing';
 };
 
+/**
+ * Ligne "Hors budget" : catégorie non budgétée ayant des transactions dans
+ * le mois, ou row synthétique "Non catégorisées" (categoryId=null).
+ */
+export type UnbudgetedLine = {
+  categoryId: string | null;
+  categoryName: string;
+  categoryColor: string | null;
+  categoryIcon: string | null;
+  actual: string;        // absolu pour affichage
+  count: number;
+};
+
 export type BudgetReport = {
   month: string;
   from: string;
   to: string;
   income:  { planned: string; actual: string; lines: BudgetLine[] };
   expense: { planned: string; actual: string; lines: BudgetLine[] };
+  /** Catégories ayant des transactions ce mois-ci mais aucun BudgetItem. */
+  unbudgetedExpense: { total: string; lines: UnbudgetedLine[] };
+  unbudgetedIncome:  { total: string; lines: UnbudgetedLine[] };
   net: {
     planned: string;
     actual: string;
