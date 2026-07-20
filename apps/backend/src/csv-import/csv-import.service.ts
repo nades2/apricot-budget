@@ -258,6 +258,19 @@ export class CsvImportService {
   /**
    * Rollback — deletes all transactions linked to this import and the import
    * itself. Because of ON DELETE SET NULL on the FK, we do it manually here.
+   *
+   * Étapes (dans une seule Prisma $transaction) :
+   *   1. Trouver les IDs de transactions liées à cet import.
+   *   2. Réinitialiser les ScheduledInstance qui y étaient matchées (REALIZED
+   *      → PROJECTED, matched_transaction_id → NULL). Sans ça, le ON DELETE
+   *      SET NULL sur `matched_transaction_id` viole la CHECK
+   *      `chk_instance_realized_has_match` (REALIZED exige un match non-null).
+   *   3. Casser les liens de transfert vers d'autres transactions (Phase 5).
+   *      Le ON DELETE SET NULL fait déjà ça côté DB pour l'autre côté, mais
+   *      on nettoie aussi les splits/refs pendantes pour rester propre.
+   *   4. Supprimer les transactions (les splits cascadent, matched_scheduled
+   *      et linked_transaction_id sont set-null côté DB).
+   *   5. Supprimer l'import.
    */
   async rollback(userId: string, importId: string) {
     const imp = await this.prisma.csvImport.findFirst({
@@ -266,9 +279,39 @@ export class CsvImportService {
     if (!imp) throw new NotFoundException(`Import ${importId} introuvable`);
 
     return this.prisma.$transaction(async (tx) => {
-      await tx.transaction.deleteMany({
+      const txsToDelete = await tx.transaction.findMany({
         where: { userId, csvImportId: imp.id },
+        select: { id: true },
       });
+      const ids = txsToDelete.map((t) => t.id);
+
+      if (ids.length > 0) {
+        // 2. Reset les ScheduledInstance qui référencent ces transactions.
+        //    On DOIT le faire avant le delete pour éviter la violation du
+        //    CHECK constraint `chk_instance_realized_has_match`.
+        await tx.scheduledInstance.updateMany({
+          where: { matchedTransactionId: { in: ids } },
+          data: {
+            status: 'PROJECTED',
+            matchedTransactionId: null,
+          },
+        });
+
+        // 3. Casser les liens de transfert entrants (par précaution — le
+        //    ON DELETE SET NULL fait le job côté DB, mais Prisma cache
+        //    parfois des données stales dans les includes).
+        await tx.transaction.updateMany({
+          where: { linkedTransactionId: { in: ids } },
+          data: { linkedTransactionId: null },
+        });
+
+        // 4. Supprime les transactions elles-mêmes.
+        await tx.transaction.deleteMany({
+          where: { id: { in: ids } },
+        });
+      }
+
+      // 5. Supprime l'import.
       return tx.csvImport.delete({ where: { id: imp.id } });
     });
   }
