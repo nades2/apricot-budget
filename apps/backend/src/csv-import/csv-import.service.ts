@@ -12,6 +12,7 @@ import { CsvParserService, DesjardinsRow } from './csv-parser.service';
 import { MappingEngineService, MappingSuggestion } from './mapping-engine.service';
 import { ConfirmImportDto } from './dto/confirm-import.dto';
 import { ReconciliationService } from '../reconciliation/reconciliation.service';
+import { TransactionsService } from '../transactions/transactions.service';
 
 @Injectable()
 export class CsvImportService {
@@ -22,6 +23,7 @@ export class CsvImportService {
     private readonly parser: CsvParserService,
     private readonly engine: MappingEngineService,
     private readonly reconciliation: ReconciliationService,
+    private readonly transactions: TransactionsService,
   ) {}
 
   /**
@@ -141,7 +143,7 @@ export class CsvImportService {
     }
 
     // Bumped timeout — 216 rows on a NAS can take longer than the 5s default.
-    return this.prisma.$transaction(
+    const confirmed = await this.prisma.$transaction(
       async (tx) => {
         // One SQL statement instead of 216 round-trips.
         const { count: insertedCount } = await tx.transaction.createMany({
@@ -219,6 +221,38 @@ export class CsvImportService {
       },
       { timeout: 30_000, maxWait: 5_000 },
     );
+
+    // Détection auto de transferts APRÈS commit — on ne veut pas relier des
+    // rows encore en cours d'insertion. Le scope `since` est un peu plus
+    // permissif que la fenêtre exacte du batch : on prend 10 jours avant la
+    // plus vieille date importée pour attraper la contrepartie potentielle
+    // sur un autre compte déjà importé plus tôt.
+    if (txData.length > 0) {
+      const oldestDate = new Date(Math.min(...txData.map((t) => (t.postedAt as Date).getTime())));
+      const sinceDate = new Date(oldestDate);
+      sinceDate.setUTCDate(sinceDate.getUTCDate() - 10);
+      try {
+        const result = await this.transactions.detectAndLinkTransfers(userId, {
+          mode: 'since',
+          sinceDate,
+        });
+        if (result.linked.length > 0) {
+          this.logger.log(
+            `Auto-linked ${result.linked.length} transfer pair(s) after import ${imp.id}`,
+          );
+        }
+        if (result.ambiguous.length > 0) {
+          this.logger.warn(
+            `${result.ambiguous.length} ambiguous CC-payment tx(s) after import ${imp.id} — user must arbitrate manually`,
+          );
+        }
+      } catch (e) {
+        // La détection n'est pas critique pour l'import — on log et on continue.
+        this.logger.error(`Detect transfers failed for import ${imp.id}: ${(e as Error).message}`);
+      }
+    }
+
+    return confirmed;
   }
 
   /**

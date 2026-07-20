@@ -231,6 +231,12 @@ export type CalendarTx = {
   } | null;
   splits: CalendarSplit[];           // ≥1 après Phase 1
   matchedPlanned?: MatchedPlanned;
+  /**
+   * ID de la contrepartie si la transaction fait partie d'une paire de
+   * transfert (paiement CC, virement inter-comptes). Non-null → exclue des
+   * totaux debit/credit/net calculés côté serveur.
+   */
+  linkedTransactionId?: string | null;
 };
 
 export type PlannedGhost = {

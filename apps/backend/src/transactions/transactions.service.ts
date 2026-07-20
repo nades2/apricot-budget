@@ -1,10 +1,19 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { UpdateSplitsDto } from './dto/update-splits.dto';
+import { LinkTransferDto } from './dto/link-transfer.dto';
 import { QueryTransactionsDto } from './dto/query-transactions.dto';
+
+/**
+ * Fenêtre de tolérance en jours pour lier deux transactions comme paire de
+ * transfert. Un paiement de carte de crédit prend souvent 1-3 jours ouvrables
+ * pour être crédité sur la carte après le débit du compte-chèques ; ±7 laisse
+ * de la marge sans être laxiste.
+ */
+const TRANSFER_WINDOW_DAYS = 7;
 
 @Injectable()
 export class TransactionsService {
@@ -264,6 +273,247 @@ export class TransactionsService {
           },
         },
       });
+    });
+  }
+
+  /**
+   * Lie deux transactions comme paire de transfert (ex. paiement CC :
+   * -500$ sur chèques ↔ +500$ sur la carte). Une fois liées, les deux
+   * transactions ne comptent plus dans les rapports catégoriels — elles
+   * représentent un simple mouvement d'argent entre comptes.
+   *
+   * Validations strictes :
+   *   - source et cible existent et appartiennent au user
+   *   - comptes différents (pas de "transfert" vers soi-même)
+   *   - montants de magnitudes égales et de signes opposés
+   *   - dates dans la fenêtre TRANSFER_WINDOW_DAYS
+   *   - aucune des deux n'est déjà liée à autre chose
+   */
+  async linkAsTransfer(userId: string, sourceId: string, dto: LinkTransferDto) {
+    if (sourceId === dto.targetTransactionId) {
+      throw new BadRequestException('Une transaction ne peut être liée à elle-même.');
+    }
+
+    const [source, target] = await Promise.all([
+      this.prisma.transaction.findFirst({
+        where: { id: sourceId, userId },
+        select: { id: true, accountId: true, amount: true, postedAt: true, linkedTransactionId: true },
+      }),
+      this.prisma.transaction.findFirst({
+        where: { id: dto.targetTransactionId, userId },
+        select: { id: true, accountId: true, amount: true, postedAt: true, linkedTransactionId: true },
+      }),
+    ]);
+
+    if (!source) throw new NotFoundException(`Transaction ${sourceId} introuvable`);
+    if (!target) throw new NotFoundException(`Transaction ${dto.targetTransactionId} introuvable`);
+
+    if (source.accountId === target.accountId) {
+      throw new BadRequestException('Un transfert doit relier deux comptes différents.');
+    }
+
+    const srcAmount = new Prisma.Decimal(source.amount);
+    const tgtAmount = new Prisma.Decimal(target.amount);
+    // Montants de magnitudes égales et signes opposés = leur somme est zéro.
+    if (!srcAmount.plus(tgtAmount).isZero()) {
+      throw new BadRequestException(
+        `Montants incompatibles : ${srcAmount.toString()} et ${tgtAmount.toString()} ne s'annulent pas.`,
+      );
+    }
+
+    // Fenêtre de dates
+    const diffDays = Math.abs(
+      (source.postedAt.getTime() - target.postedAt.getTime()) / 86_400_000,
+    );
+    if (diffDays > TRANSFER_WINDOW_DAYS) {
+      throw new BadRequestException(
+        `Les deux transactions doivent être à ±${TRANSFER_WINDOW_DAYS} jours (${diffDays.toFixed(0)}j de différence).`,
+      );
+    }
+
+    // Aucune n'est déjà liée (à autre chose que sa contrepartie visée).
+    if (source.linkedTransactionId && source.linkedTransactionId !== target.id) {
+      throw new ConflictException(
+        `Transaction source déjà liée à ${source.linkedTransactionId} — délie-la d'abord.`,
+      );
+    }
+    if (target.linkedTransactionId && target.linkedTransactionId !== source.id) {
+      throw new ConflictException(
+        `Transaction cible déjà liée à ${target.linkedTransactionId} — délie-la d'abord.`,
+      );
+    }
+
+    // Écriture atomique des deux côtés.
+    return this.prisma.$transaction(async (client) => {
+      await client.transaction.update({
+        where: { id: source.id },
+        data: { linkedTransactionId: target.id },
+      });
+      await client.transaction.update({
+        where: { id: target.id },
+        data: { linkedTransactionId: source.id },
+      });
+      return {
+        source: await client.transaction.findUnique({
+          where: { id: source.id },
+          include: {
+            account: { select: { id: true, name: true, type: true } },
+            linkedTransaction: {
+              select: { id: true, description: true, amount: true, postedAt: true, accountId: true },
+            },
+          },
+        }),
+        target: await client.transaction.findUnique({
+          where: { id: target.id },
+          include: {
+            account: { select: { id: true, name: true, type: true } },
+            linkedTransaction: {
+              select: { id: true, description: true, amount: true, postedAt: true, accountId: true },
+            },
+          },
+        }),
+      };
+    });
+  }
+
+  /**
+   * Délie une transaction de sa contrepartie. Nettoie les deux côtés
+   * atomiquement pour préserver l'invariance de symétrie.
+   */
+  /**
+   * Scanne les transactions d'un utilisateur et lie automatiquement les paires
+   * de transfert détectables.
+   *
+   * Critère de détection strict (Phase 5) :
+   *   - les deux transactions sont catégorisées "Paiement carte de crédit"
+   *     (slug système `paiement-carte-credit`)
+   *   - dans des comptes différents
+   *   - montants de magnitude égale et signes opposés (leur somme = 0)
+   *   - dates à ±3 jours
+   *   - aucune des deux n'est déjà liée
+   *
+   * Un candidat qui matche exactement UNE contrepartie est lié automatiquement.
+   * 0 candidats → silencieux (rien à faire). 2+ candidats → laissé au user
+   * pour arbitrage manuel (retourné dans `ambiguous`).
+   *
+   * @param scope
+   *   - `all` : parcourt tout l'historique de l'utilisateur (utilisé par le
+   *     one-shot de migration).
+   *   - `since` + `sinceDate` : ne considère que les transactions à partir de
+   *     cette date (utilisé lors du confirm d'un import CSV).
+   */
+  async detectAndLinkTransfers(
+    userId: string,
+    scope: { mode: 'all' } | { mode: 'since'; sinceDate: Date } = { mode: 'all' },
+  ): Promise<{
+    linked: Array<{ sourceId: string; targetId: string; amount: string; date: string }>;
+    ambiguous: Array<{ txId: string; description: string; candidateCount: number }>;
+  }> {
+    // 1) Trouver la catégorie "Paiement carte de crédit" (système, seedée).
+    const ccCategory = await this.prisma.category.findFirst({
+      where: { slug: 'paiement-carte-credit', OR: [{ userId }, { userId: null }] },
+      select: { id: true },
+    });
+    if (!ccCategory) {
+      return { linked: [], ambiguous: [] };
+    }
+
+    // 2) Charger toutes les transactions non-liées catégorisées CC-payment
+    //    dans le scope demandé.
+    const candidates = await this.prisma.transaction.findMany({
+      where: {
+        userId,
+        categoryId: ccCategory.id,
+        linkedTransactionId: null,
+        ...(scope.mode === 'since' ? { postedAt: { gte: scope.sinceDate } } : {}),
+      },
+      select: {
+        id: true,
+        accountId: true,
+        amount: true,
+        postedAt: true,
+        description: true,
+      },
+      orderBy: { postedAt: 'asc' },
+    });
+
+    if (candidates.length < 2) return { linked: [], ambiguous: [] };
+
+    const windowMs = 3 * 86_400_000;
+    const linked: Array<{ sourceId: string; targetId: string; amount: string; date: string }> = [];
+    const ambiguous: Array<{ txId: string; description: string; candidateCount: number }> = [];
+    const consumed = new Set<string>();
+
+    for (const a of candidates) {
+      if (consumed.has(a.id)) continue;
+      const aAmt = new Prisma.Decimal(a.amount);
+
+      // Cherche les candidats miroirs parmi les autres.
+      const matches = candidates.filter((b) => {
+        if (b.id === a.id) return false;
+        if (consumed.has(b.id)) return false;
+        if (b.accountId === a.accountId) return false;
+        // amounts must sum to zero
+        if (!new Prisma.Decimal(b.amount).plus(aAmt).isZero()) return false;
+        const diff = Math.abs(b.postedAt.getTime() - a.postedAt.getTime());
+        return diff <= windowMs;
+      });
+
+      if (matches.length === 1) {
+        const b = matches[0];
+        // Écriture atomique de la paire.
+        await this.prisma.$transaction(async (client) => {
+          await client.transaction.update({
+            where: { id: a.id },
+            data: { linkedTransactionId: b.id },
+          });
+          await client.transaction.update({
+            where: { id: b.id },
+            data: { linkedTransactionId: a.id },
+          });
+        });
+        consumed.add(a.id);
+        consumed.add(b.id);
+        linked.push({
+          sourceId: a.id,
+          targetId: b.id,
+          amount: aAmt.toString(),
+          date: a.postedAt.toISOString().slice(0, 10),
+        });
+      } else if (matches.length >= 2) {
+        ambiguous.push({
+          txId: a.id,
+          description: a.description,
+          candidateCount: matches.length,
+        });
+      }
+      // 0 matches : rien à faire, on continue.
+    }
+
+    return { linked, ambiguous };
+  }
+
+  async unlinkTransfer(userId: string, txId: string) {
+    const tx = await this.prisma.transaction.findFirst({
+      where: { id: txId, userId },
+      select: { id: true, linkedTransactionId: true },
+    });
+    if (!tx) throw new NotFoundException(`Transaction ${txId} introuvable`);
+    if (!tx.linkedTransactionId) {
+      throw new BadRequestException(`Transaction ${txId} n'est pas liée à un transfert.`);
+    }
+    const partnerId = tx.linkedTransactionId;
+
+    return this.prisma.$transaction(async (client) => {
+      await client.transaction.update({
+        where: { id: tx.id },
+        data: { linkedTransactionId: null },
+      });
+      await client.transaction.update({
+        where: { id: partnerId },
+        data: { linkedTransactionId: null },
+      });
+      return { unlinked: [tx.id, partnerId] };
     });
   }
 }

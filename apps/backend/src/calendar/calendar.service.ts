@@ -42,6 +42,14 @@ export type CalendarTransaction = {
   category: CategoryLite | null;
   splits: CalendarSplit[];
   matchedPlanned?: MatchedPlanned;
+  /**
+   * ID de la transaction contrepartie si celle-ci est un transfert entre
+   * comptes (paiement CC, virement chèques → épargne, etc.). Quand ce champ
+   * est non-null, la transaction est EXCLUE des totaux debit/credit/net du
+   * jour et de la période — elle représente juste un mouvement d'argent, pas
+   * une vraie dépense/revenu.
+   */
+  linkedTransactionId?: string | null;
 };
 
 export type PlannedGhost = {
@@ -253,14 +261,22 @@ export class CalendarService {
       if (!day) continue; // tx in the ±3 halo but outside the reported window
 
       const amt = new Prisma.Decimal(tx.amount);
-      if (amt.isNegative()) {
-        day.totalDebit = new Prisma.Decimal(day.totalDebit).plus(amt.abs()).toString();
-        grandDebit = grandDebit.plus(amt.abs());
-      } else if (amt.isPositive()) {
-        day.totalCredit = new Prisma.Decimal(day.totalCredit).plus(amt).toString();
-        grandCredit = grandCredit.plus(amt);
+      const isTransfer = tx.linkedTransactionId !== null && tx.linkedTransactionId !== undefined;
+
+      // Les transferts sont affichés dans la liste mais N'ENTRENT PAS dans
+      // les totaux debit/credit/net — ils représentent juste un mouvement
+      // d'argent entre comptes. C'est le fix du double-comptage historique
+      // sur les paiements de carte de crédit.
+      if (!isTransfer) {
+        if (amt.isNegative()) {
+          day.totalDebit = new Prisma.Decimal(day.totalDebit).plus(amt.abs()).toString();
+          grandDebit = grandDebit.plus(amt.abs());
+        } else if (amt.isPositive()) {
+          day.totalCredit = new Prisma.Decimal(day.totalCredit).plus(amt).toString();
+          grandCredit = grandCredit.plus(amt);
+        }
+        day.net = new Prisma.Decimal(day.net).plus(amt).toString();
       }
-      day.net = new Prisma.Decimal(day.net).plus(amt).toString();
       day.txCount += 1;
       day.transactions.push({
         id: tx.id,
@@ -273,6 +289,7 @@ export class CalendarService {
           category: s.category,
         })),
         matchedPlanned: matchByTxId.get(tx.id),
+        linkedTransactionId: tx.linkedTransactionId ?? null,
       });
     }
 

@@ -38,6 +38,11 @@ type TxDetail = {
   account: { id: string; name: string; type: 'ASSET' | 'LIABILITY' };
   /** ≥1 après Phase 1. Représentation atomique de la répartition. */
   splits: SplitLine[];
+  /**
+   * Non-null quand cette transaction fait partie d'une paire de transfert.
+   * Une transaction liée ne compte pas dans les rapports catégoriels.
+   */
+  linkedTransactionId?: string | null;
 };
 
 export function DayDetailModal({
@@ -263,6 +268,17 @@ function TxItem({
   const isCredit = amt > 0;
   const splitCount = tx.splits?.length ?? 0;
   const isMultiSplit = splitCount > 1;
+  const isTransfer = !!tx.linkedTransactionId;
+
+  const unlinkTransfer = useMutation({
+    mutationFn: () => api.delete<{ unlinked: string[] }>(`/transactions/${tx.id}/link`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tx-day', dayDate] });
+      qc.invalidateQueries({ queryKey: ['calendar'] });
+      qc.invalidateQueries({ queryKey: ['budget-report'] });
+      qc.invalidateQueries({ queryKey: ['forecast'] });
+    },
+  });
 
   // La pastille utilise la couleur de la première catégorie (ou gray).
   // Le fond "credit" (revenu) l'emporte visuellement — cohérent avec le passé.
@@ -357,9 +373,9 @@ function TxItem({
           ) : (
             <div className="text-xs text-gray-500 dark:text-gray-400 flex gap-1.5 items-center flex-wrap">
               <button
-                onClick={() => !isMultiSplit && setMode('category')}
+                onClick={() => !isMultiSplit && !isTransfer && setMode('category')}
                 title={summaryLabel.tooltip}
-                className={`transition ${isMultiSplit
+                className={`transition ${isMultiSplit || isTransfer
                   ? 'cursor-default'
                   : 'hover:text-gray-900 dark:hover:text-gray-100 hover:underline'}`}
               >
@@ -367,14 +383,36 @@ function TxItem({
               </button>
               <span className="text-gray-300 dark:text-gray-600">&middot;</span>
               <span>{tx.account.name}</span>
-              <span className="text-gray-300 dark:text-gray-600">&middot;</span>
-              <button
-                onClick={() => setMode('split')}
-                className="hover:text-gray-900 dark:hover:text-gray-100 hover:underline transition italic"
-                title={isMultiSplit ? 'Modifier les splits' : 'Diviser en plusieurs catégories'}
-              >
-                {isMultiSplit ? 'Modifier splits' : 'Diviser'}
-              </button>
+              {isTransfer ? (
+                <>
+                  <span className="text-gray-300 dark:text-gray-600">&middot;</span>
+                  <span
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-cat-purple-bg text-cat-purple-fg font-medium"
+                    title="Cette transaction fait partie d'une paire de transfert entre comptes — elle n'entre pas dans les totaux catégoriels."
+                  >
+                    ↔ Transfert
+                  </span>
+                  <button
+                    onClick={() => unlinkTransfer.mutate()}
+                    disabled={unlinkTransfer.isPending}
+                    className="italic hover:text-red-600 hover:underline transition disabled:opacity-50"
+                    title="Casser le lien de transfert"
+                  >
+                    {unlinkTransfer.isPending ? '…' : 'Délier'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="text-gray-300 dark:text-gray-600">&middot;</span>
+                  <button
+                    onClick={() => setMode('split')}
+                    className="hover:text-gray-900 dark:hover:text-gray-100 hover:underline transition italic"
+                    title={isMultiSplit ? 'Modifier les splits' : 'Diviser en plusieurs catégories'}
+                  >
+                    {isMultiSplit ? 'Modifier splits' : 'Diviser'}
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>

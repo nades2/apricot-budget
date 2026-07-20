@@ -4,9 +4,10 @@ import { CsvImportService } from './csv-import.service';
 import { CsvParserService } from './csv-parser.service';
 import { MappingEngineService } from './mapping-engine.service';
 import { ReconciliationModule } from '../reconciliation/reconciliation.module';
+import { TransactionsModule } from '../transactions/transactions.module';
 
 @Module({
-  imports: [ReconciliationModule],
+  imports: [ReconciliationModule, TransactionsModule],
   controllers: [CsvImportController],
   providers: [CsvImportService, CsvParserService, MappingEngineService],
   exports: [CsvImportService],
