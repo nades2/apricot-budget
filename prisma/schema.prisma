@@ -164,8 +164,9 @@ model Category {
   createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt  DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  user            User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions    Transaction[]
+  splits          TransactionSplit[]
   csvMappingRules CsvMappingRule[]
   budgetItems     BudgetItem[]
 
@@ -191,6 +192,16 @@ model Transaction {
   categoryId      String?  @map("category_id") @db.Uuid
   csvImportId     String?  @map("csv_import_id") @db.Uuid
 
+  // Transfer pairing — self-reference. When set, points at the counterpart
+  // transaction in another account (e.g. -500 on checking ↔ +500 on the CC).
+  // Uniqueness is enforced at the DB level by a partial UNIQUE index (see
+  // migration `20260720000000_splits_and_transfers`). We don't declare it as
+  // Prisma `@unique` here because Prisma would generate a full unique
+  // constraint — the partial form is the correct semantics (many rows may
+  // legitimately have NULL). Populated by the (future) transfer-matching
+  // flow; NULL for regular expenses/income.
+  linkedTransactionId String? @map("linked_transaction_id") @db.Uuid
+
   postedAt        DateTime @map("posted_at") @db.Date          // transaction date, no time
   description     String   @db.Citext                          // raw bank libellé
   amount          Decimal  @db.Decimal(14, 2)                  // signed
@@ -207,6 +218,17 @@ model Transaction {
   category  Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   csvImport CsvImport? @relation(fields: [csvImportId], references: [id], onDelete: SetNull)
 
+  // Split lines. Every transaction has ≥1 split whose amounts sum to
+  // `transaction.amount`. Populated in parallel with `categoryId` starting
+  // in Phase 1; reads still use `categoryId` until Phase 2 flips over.
+  splits    TransactionSplit[]
+
+  // Self-relation for transfer pairing. `linkedTransaction` = the counterpart
+  // side of the transfer. `linkingTransactions` is the reverse — logically
+  // always ≤1 row thanks to the UNIQUE index, exposed as an array by Prisma.
+  linkedTransaction   Transaction?  @relation("TransactionTransferLink", fields: [linkedTransactionId], references: [id], onDelete: SetNull)
+  linkingTransactions Transaction[] @relation("TransactionTransferLink")
+
   // Réverse-lien depuis ScheduledInstance quand la transaction rapproche une
   // occurrence projetée. Une transaction ne peut satisfaire qu'une occurrence
   // à la fois (contrainte UNIQUE côté ScheduledInstance.matchedTransactionId).
@@ -220,6 +242,33 @@ model Transaction {
   // Dedup guard: same account + same date + same amount + same external ref.
   @@unique([accountId, postedAt, amount, externalId], name: "uq_tx_dedup")
   @@map("transactions")
+}
+
+// ---------------------------------------------------------------------------
+//  TransactionSplit
+//  Allows a single transaction to be split across multiple categories, e.g.
+//  a Costco receipt covering groceries + pharmacy + clothing. Every
+//  transaction has ≥1 split; the sum of split amounts equals the parent
+//  transaction's amount (application-level invariant, not DB-enforced).
+//  `amount` is signed, same convention as `Transaction.amount`.
+// ---------------------------------------------------------------------------
+
+model TransactionSplit {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  transactionId String   @map("transaction_id") @db.Uuid
+  categoryId    String?  @map("category_id") @db.Uuid
+  amount        Decimal  @db.Decimal(14, 2)   // signed
+  notes         String?
+  sortOrder     Int      @default(0) @map("sort_order")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  category    Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([transactionId])
+  @@index([categoryId])
+  @@map("transaction_splits")
 }
 
 // ---------------------------------------------------------------------------

@@ -147,6 +147,22 @@ export class CsvImportService {
           skipDuplicates: true, // gracefully handle re-runs against unique (account_id, posted_at, amount, external_id)
         });
 
+        // Phase 1 — Splits miroirs.
+        // createMany n'accepte pas les nested writes; on insère les splits en
+        // une seule requête depuis la table transactions elle-même, en se
+        // limitant aux rows tout juste rattachées à cet import et qui n'ont
+        // pas déjà un split (ré-import idempotent). Une ligne split par
+        // transaction, sortOrder=0, amount et categoryId recopiés verbatim.
+        await tx.$executeRaw`
+          INSERT INTO "transaction_splits" ("transaction_id", "category_id", "amount", "sort_order")
+          SELECT t."id", t."category_id", t."amount", 0
+          FROM "transactions" t
+          WHERE t."csv_import_id" = ${imp.id}::uuid
+            AND NOT EXISTS (
+              SELECT 1 FROM "transaction_splits" s WHERE s."transaction_id" = t."id"
+            )
+        `;
+
         // Reconciliation - dans la meme transaction Prisma pour rester atomique.
         // Fenetre = min/max des dates postees dans le lot.
         if (txData.length > 0) {

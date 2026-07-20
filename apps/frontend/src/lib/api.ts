@@ -34,6 +34,8 @@ export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
+  put: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
@@ -203,6 +205,18 @@ export type MatchedPlanned = {
   deltaStatus: 'ok' | 'over' | 'under';
 };
 
+export type CalendarSplit = {
+  id: string;
+  amount: string;                    // signed Decimal string
+  category: {
+    id: string;
+    name: string;
+    icon: string | null;
+    color: string | null;
+    direction: CategoryDirection;
+  } | null;
+};
+
 export type CalendarTx = {
   id: string;
   description: string;
@@ -214,6 +228,7 @@ export type CalendarTx = {
     color: string | null;
     direction: CategoryDirection;
   } | null;
+  splits: CalendarSplit[];           // ≥1 après Phase 1
   matchedPlanned?: MatchedPlanned;
 };
 

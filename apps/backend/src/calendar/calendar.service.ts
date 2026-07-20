@@ -24,11 +24,23 @@ export type MatchedPlanned = {
   deltaStatus: 'ok' | 'over' | 'under';
 };
 
+/**
+ * A split line inlined in a calendar cell response. Frontend uses these
+ * to display the "Épicerie +2" compact chip and its tooltip when a
+ * transaction has multiple splits.
+ */
+export type CalendarSplit = {
+  id: string;
+  amount: string;                     // signed Decimal, stringified
+  category: CategoryLite | null;
+};
+
 export type CalendarTransaction = {
   id: string;
   description: string;
   amount: string;                     // signed Decimal, stringified
   category: CategoryLite | null;
+  splits: CalendarSplit[];
   matchedPlanned?: MatchedPlanned;
 };
 
@@ -109,6 +121,12 @@ export class CalendarService {
       },
       include: {
         category: { select: { id: true, name: true, icon: true, color: true, direction: true } },
+        splits: {
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+          include: {
+            category: { select: { id: true, name: true, icon: true, color: true, direction: true } },
+          },
+        },
       },
       orderBy: [{ postedAt: 'asc' }],
     });
@@ -249,6 +267,11 @@ export class CalendarService {
         description: tx.description,
         amount: amt.toString(),
         category: tx.category,
+        splits: (tx.splits ?? []).map((s) => ({
+          id: s.id,
+          amount: new Prisma.Decimal(s.amount).toString(),
+          category: s.category,
+        })),
         matchedPlanned: matchByTxId.get(tx.id),
       });
     }
