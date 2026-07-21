@@ -67,6 +67,17 @@ export type BudgetReport = {
     total: string;
     lines: UnbudgetedLine[];
   };
+  /**
+   * Transactions dans une catégorie "staging" (ex. Remboursement) qui
+   * exigent une reclassification manuelle. Séparé des sections revenus/
+   * dépenses parce que le user ne peut pas budgéter ces catégories — elles
+   * ne représentent que du bruit tant qu'elles ne sont pas requalifiées.
+   * Le montant `actual` est en absolu pour cohérence avec UnbudgetedLine.
+   */
+  staging: {
+    total: string;
+    lines: UnbudgetedLine[];
+  };
   net: {
     planned: string;                // income.planned - expense.planned
     actual: string;                 // income.actual - expense.actual
@@ -81,7 +92,19 @@ export type BudgetReport = {
  * pour les rows non classifiées. Ne sont PAS considérées comme des dépenses
  * ou revenus réels au sens budgétaire, donc exclues de la section "Hors budget".
  */
-const TECHNICAL_CATEGORY_SLUGS = ['paiement-carte-credit', 'transfert', 'non-categorise'];
+const TECHNICAL_CATEGORY_SLUGS = ['paiement-carte-credit', 'transfert', 'non-categorise', 'remboursement'];
+
+/**
+ * Slugs de catégories "staging" — direction NEUTRAL, utilisées à l'import
+ * quand le BNC n'a pas assez d'info pour classer (ex. "Remboursement" est
+ * un fourre-tout pour tout crédit non-salaire). Ces transactions doivent
+ * être reclassées manuellement par le user vers soit la catégorie DÉPENSE
+ * originale (remb. marchand), soit une catégorie REVENU (crédit d'impôt,
+ * etc). On les expose dans une section "À reclasser" séparée pour qu'elles
+ * ne se perdent pas — les rapports revenus/dépenses les ignorent, mais
+ * l'utilisateur doit les voir pour agir.
+ */
+const STAGING_CATEGORY_SLUGS = ['remboursement'];
 
 @Injectable()
 export class BudgetService {
@@ -398,6 +421,53 @@ export class BudgetService {
       new Prisma.Decimal(0),
     );
 
+    // ---- Section "À reclasser" (staging) --------------------------------
+    // Catégories NEUTRAL flaggées comme staging (ex. Remboursement) qui
+    // ont des transactions ce mois-ci. Séparé pour forcer l'action user.
+    const stagingCats = await this.prisma.category.findMany({
+      where: {
+        OR: [{ userId }, { userId: null }],
+        slug: { in: STAGING_CATEGORY_SLUGS },
+      },
+      select: { id: true, slug: true, name: true, color: true, icon: true },
+    });
+    const stagingLines: UnbudgetedLine[] = [];
+    if (stagingCats.length > 0) {
+      const stagingIds = stagingCats.map((c) => c.id);
+      const rows = await this.prisma.transaction.groupBy({
+        by: ['categoryId'],
+        where: {
+          userId,
+          postedAt: { gte: monthStart, lte: monthEnd },
+          categoryId: { in: stagingIds },
+          linkedTransactionId: null,
+        },
+        _sum: { amount: true },
+        _count: { _all: true },
+      });
+      const catById = new Map(stagingCats.map((c) => [c.id, c]));
+      for (const r of rows) {
+        if (!r.categoryId) continue;
+        const cat = catById.get(r.categoryId);
+        if (!cat) continue;
+        stagingLines.push({
+          categoryId: cat.id,
+          categoryName: cat.name,
+          categoryColor: cat.color,
+          categoryIcon: cat.icon,
+          actual: (r._sum.amount ?? new Prisma.Decimal(0)).abs().toString(),
+          count: r._count._all,
+        });
+      }
+      stagingLines.sort(
+        (a, b) => new Prisma.Decimal(b.actual).comparedTo(new Prisma.Decimal(a.actual)),
+      );
+    }
+    const stagingTotal = stagingLines.reduce(
+      (s, l) => s.plus(new Prisma.Decimal(l.actual)),
+      new Prisma.Decimal(0),
+    );
+
     const netPlanned = incomePlanned.minus(expensePlanned);
     const netActual = incomeActual.minus(expenseActual);
     const netVariance = netActual.minus(netPlanned);
@@ -416,6 +486,10 @@ export class BudgetService {
       unbudgetedIncome: {
         total: unbudgetedIncomeTotal.toString(),
         lines: unbudgetedIncomeLines,
+      },
+      staging: {
+        total: stagingTotal.toString(),
+        lines: stagingLines,
       },
       net: {
         planned: netPlanned.toString(),

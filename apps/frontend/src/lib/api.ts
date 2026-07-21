@@ -201,6 +201,11 @@ export type BudgetReport = {
   /** Catégories ayant des transactions ce mois-ci mais aucun BudgetItem. */
   unbudgetedExpense: { total: string; lines: UnbudgetedLine[] };
   unbudgetedIncome:  { total: string; lines: UnbudgetedLine[] };
+  /**
+   * Transactions dans une catégorie "staging" (ex. Remboursement) qui
+   * attendent une reclassification manuelle. Non comptées dans les rapports.
+   */
+  staging: { total: string; lines: UnbudgetedLine[] };
   net: {
     planned: string;
     actual: string;

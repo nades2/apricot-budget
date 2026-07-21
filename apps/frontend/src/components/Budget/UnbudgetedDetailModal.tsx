@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, Category, CategoryDirection } from '../../lib/api';
+import { isSelectableCategory } from '../../lib/categories';
 import { formatCurrency } from '../../lib/format';
 
 /**
@@ -148,10 +149,13 @@ function TxItem({
   const amt = Number(tx.amount);
   const isCredit = amt > 0;
 
-  // Filtre les catégories compatibles avec le signe de la transaction.
+  // Filtre les catégories compatibles avec le signe de la transaction, en
+  // excluant les catégories techniques (Remboursement, Transfert, etc.) que
+  // l'user ne doit pas choisir manuellement — voir lib/categories.ts.
   const compatible = categories.filter((c) => {
-    if (isCredit) return c.direction === 'INCOME' || c.direction === 'NEUTRAL' || c.direction === 'TRANSFER';
-    return c.direction === 'EXPENSE' || c.direction === 'NEUTRAL' || c.direction === 'TRANSFER';
+    if (!isSelectableCategory(c.slug)) return false;
+    if (isCredit) return c.direction === 'INCOME' || c.direction === 'NEUTRAL';
+    return c.direction === 'EXPENSE' || c.direction === 'NEUTRAL';
   });
 
   const update = useMutation({

@@ -8,9 +8,17 @@ import { formatCurrency } from '../../lib/format';
  * BudgetItem, plus une row synthétique "Non catégorisées" pour les
  * transactions sans categoryId.
  *
+ * Variantes :
+ *   - `EXPENSE` / `INCOME` — sections classiques "Hors budget", rouge/vert.
+ *   - `STAGING` — section "À reclasser", ambre (action requise) : les
+ *     transactions dans une catégorie fourre-tout comme "Remboursement" qui
+ *     ne sont ni des dépenses ni des revenus tant que non requalifiées.
+ *
  * Rendu conditionnel : si aucune ligne, on n'affiche pas la section (silence
  * budgétaire = tout est budgeté, bonne nouvelle).
  */
+type UnbudgetedTableVariant = 'EXPENSE' | 'INCOME' | 'STAGING';
+
 export function UnbudgetedTable({
   title,
   lines,
@@ -21,11 +29,18 @@ export function UnbudgetedTable({
   title: string;
   lines: UnbudgetedLine[];
   total: string;
-  direction: 'EXPENSE' | 'INCOME';
+  direction: UnbudgetedTableVariant;
   /** Ouvre le modal détail — appelé avec la line sélectionnée. */
   onRowClick?: (line: UnbudgetedLine) => void;
 }) {
   if (lines.length === 0) return null;
+
+  const totalColorClass =
+    direction === 'EXPENSE'
+      ? 'text-cat-red-fg'
+      : direction === 'INCOME'
+        ? 'text-cat-green-fg'
+        : 'text-cat-amber-fg';
 
   return (
     <section>
@@ -33,9 +48,7 @@ export function UnbudgetedTable({
         <h2 className="text-base font-semibold">{title}</h2>
         <div className="text-sm text-gray-500 dark:text-gray-400 tabular-nums">
           Total{' '}
-          <b className={direction === 'EXPENSE' ? 'text-cat-red-fg' : 'text-cat-green-fg'}>
-            {formatCurrency(total, true)}
-          </b>
+          <b className={totalColorClass}>{formatCurrency(total, true)}</b>
         </div>
       </div>
 
@@ -70,12 +83,18 @@ function Row({
   onClick,
 }: {
   line: UnbudgetedLine;
-  direction: 'EXPENSE' | 'INCOME';
+  direction: UnbudgetedTableVariant;
   onClick?: (line: UnbudgetedLine) => void;
 }) {
   const color = line.categoryColor ?? 'gray';
   const isUncategorized = line.categoryId === null;
   const clickable = !!onClick;
+  const amountColorClass =
+    direction === 'EXPENSE'
+      ? 'text-cat-red-fg'
+      : direction === 'INCOME'
+        ? 'text-cat-green-fg'
+        : 'text-cat-amber-fg';
 
   return (
     <tr
@@ -103,11 +122,7 @@ function Row({
       <td className="px-3 py-2 text-right tabular-nums text-gray-600 dark:text-gray-400">
         {line.count}
       </td>
-      <td
-        className={`px-3 py-2 text-right tabular-nums font-medium ${
-          direction === 'EXPENSE' ? 'text-cat-red-fg' : 'text-cat-green-fg'
-        }`}
-      >
+      <td className={`px-3 py-2 text-right tabular-nums font-medium ${amountColorClass}`}>
         {formatCurrency(line.actual, true)}
       </td>
     </tr>

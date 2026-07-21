@@ -129,6 +129,16 @@ export function BudgetPage() {
             direction="INCOME"
             onRowClick={(line) => setDetailLine({ line, direction: 'INCOME' })}
           />
+
+          {report.staging.lines.length > 0 && (
+            <UnbudgetedTable
+              title="À reclasser"
+              lines={report.staging.lines}
+              total={report.staging.total}
+              direction="STAGING"
+              onRowClick={(line) => setDetailLine({ line, direction: 'INCOME' })}
+            />
+          )}
         </div>
       )}
 

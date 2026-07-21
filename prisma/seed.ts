@@ -50,9 +50,17 @@ const CATEGORIES: SeedCategory[] = [
   { slug: 'salaire',               name: 'Salaire',               direction: 'INCOME',  icon: 'cash',            color: 'green',  sortOrder: 100 },
   { slug: 'retour-impot',          name: 'Retour d\'impôt',       direction: 'INCOME',  icon: 'receipt-tax',     color: 'green',  sortOrder: 101 },
   { slug: 'investissements',       name: 'Investissements',       direction: 'INCOME',  icon: 'trending-up',     color: 'green',  sortOrder: 102 },
-  { slug: 'remboursement',         name: 'Remboursement',         direction: 'INCOME',  icon: 'refresh',         color: 'green',  sortOrder: 103 },
+  { slug: 'remboursements-gouv',   name: 'Remboursements gouv.',  direction: 'INCOME',  icon: 'receipt-tax',     color: 'green',  sortOrder: 103 },
   // --- Transferts / neutre -----------------------------------------------
   { slug: 'transfert',             name: 'Transfert entre comptes', direction: 'TRANSFER', icon: 'arrows-exchange', color: 'gray', sortOrder: 200 },
+  // Staging — utilisé uniquement à l'import quand le BNC classe un crédit
+  // comme "Remboursement" sans info sur la source. Direction NEUTRAL pour
+  // rester hors des rapports revenus/dépenses ; visible dans "À reclasser"
+  // sur la page Budget pour forcer la classification manuelle vers soit :
+  //   - la catégorie DÉPENSE originale (remb. marchand, ex. Santé pour un
+  //     remboursement d'assurance physio ; nette contre le poste)
+  //   - une catégorie REVENU (ex. Remboursements gouv. pour un crédit d'impôt)
+  { slug: 'remboursement',         name: 'Remboursement (à reclasser)', direction: 'NEUTRAL', icon: 'refresh',    color: 'gray',   sortOrder: 210 },
   { slug: 'non-categorise',        name: 'Non catégorisé',        direction: 'NEUTRAL', icon: 'help',            color: 'gray',   sortOrder: 999 },
 ];
 
