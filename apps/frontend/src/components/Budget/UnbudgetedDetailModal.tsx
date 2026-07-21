@@ -32,7 +32,6 @@ export function UnbudgetedDetailModal({
   month,
   categoryId,
   categoryName,
-  direction,
   onClose,
 }: {
   /** YYYY-MM du mois affiché */
@@ -40,11 +39,15 @@ export function UnbudgetedDetailModal({
   /** null pour les non-catégorisées */
   categoryId: string | null;
   categoryName: string;
-  direction: 'EXPENSE' | 'INCOME';
+  /**
+   * Direction non utilisée directement dans le modal — le filtre de
+   * catégories compatibles est basé sur le signe individuel de chaque
+   * transaction. Gardée dans l'API publique du modal pour cohérence
+   * sémantique (utile si on ajoute un badge de direction dans le header).
+   */
+  direction?: 'EXPENSE' | 'INCOME';
   onClose: () => void;
 }) {
-  const qc = useQueryClient();
-
   // Fenêtre du mois (from = 1er, to = dernier jour).
   const [year, mon] = month.split('-').map(Number);
   const from = `${year}-${String(mon).padStart(2, '0')}-01`;
@@ -118,7 +121,6 @@ export function UnbudgetedDetailModal({
                   key={tx.id}
                   tx={tx}
                   categories={categories ?? []}
-                  direction={direction}
                   month={month}
                   currentCategoryId={categoryId}
                 />
@@ -134,13 +136,11 @@ export function UnbudgetedDetailModal({
 function TxItem({
   tx,
   categories,
-  direction,
   month,
   currentCategoryId,
 }: {
   tx: TxRow;
   categories: Category[];
-  direction: 'EXPENSE' | 'INCOME';
   month: string;
   currentCategoryId: string | null;
 }) {
