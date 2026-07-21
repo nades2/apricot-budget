@@ -16,11 +16,14 @@ export function UnbudgetedTable({
   lines,
   total,
   direction,
+  onRowClick,
 }: {
   title: string;
   lines: UnbudgetedLine[];
   total: string;
   direction: 'EXPENSE' | 'INCOME';
+  /** Ouvre le modal détail — appelé avec la line sélectionnée. */
+  onRowClick?: (line: UnbudgetedLine) => void;
 }) {
   if (lines.length === 0) return null;
 
@@ -47,7 +50,12 @@ export function UnbudgetedTable({
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
             {lines.map((l, i) => (
-              <Row key={l.categoryId ?? `uncat-${i}`} line={l} direction={direction} />
+              <Row
+                key={l.categoryId ?? `uncat-${i}`}
+                line={l}
+                direction={direction}
+                onClick={onRowClick}
+              />
             ))}
           </tbody>
         </table>
@@ -56,20 +64,41 @@ export function UnbudgetedTable({
   );
 }
 
-function Row({ line, direction }: { line: UnbudgetedLine; direction: 'EXPENSE' | 'INCOME' }) {
+function Row({
+  line,
+  direction,
+  onClick,
+}: {
+  line: UnbudgetedLine;
+  direction: 'EXPENSE' | 'INCOME';
+  onClick?: (line: UnbudgetedLine) => void;
+}) {
   const color = line.categoryColor ?? 'gray';
   const isUncategorized = line.categoryId === null;
+  const clickable = !!onClick;
 
   return (
-    <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/50 dark:bg-gray-800/40">
+    <tr
+      onClick={clickable ? () => onClick!(line) : undefined}
+      className={`dark:bg-gray-800/40 ${
+        clickable ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 group' : ''
+      }`}
+    >
       <td className="px-3 py-2">
-        <span
-          className={`inline-block px-2 py-0.5 rounded text-xs bg-cat-${color}-bg text-cat-${color}-fg ${
-            isUncategorized ? 'italic' : ''
-          }`}
-        >
-          {line.categoryName}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span
+            className={`inline-block px-2 py-0.5 rounded text-xs bg-cat-${color}-bg text-cat-${color}-fg ${
+              isUncategorized ? 'italic' : ''
+            }`}
+          >
+            {line.categoryName}
+          </span>
+          {clickable && (
+            <span className="text-gray-300 group-hover:text-gray-500 dark:text-gray-500 dark:group-hover:text-gray-300 text-xs">
+              →
+            </span>
+          )}
+        </div>
       </td>
       <td className="px-3 py-2 text-right tabular-nums text-gray-600 dark:text-gray-400">
         {line.count}

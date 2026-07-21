@@ -1,5 +1,5 @@
-import { Type } from 'class-transformer';
-import { IsDateString, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsDateString, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
 
 export class QueryTransactionsDto {
   @IsOptional()
@@ -9,6 +9,16 @@ export class QueryTransactionsDto {
   @IsOptional()
   @IsUUID()
   categoryId?: string;
+
+  /**
+   * `true` = filtrer uniquement les transactions sans catégorie
+   * (`categoryId IS NULL`). Utilisé par le modal "Hors budget" pour lister
+   * les tx non catégorisées d'un mois. Mutuellement exclusif avec `categoryId`.
+   */
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  uncategorized?: boolean;
 
   @IsOptional()
   @IsDateString()

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, BudgetItem, BudgetReport } from '../lib/api';
+import { api, BudgetItem, BudgetReport, UnbudgetedLine } from '../lib/api';
 import { VerdictBanner } from '../components/Budget/VerdictBanner';
 import { BudgetLineTable } from '../components/Budget/BudgetLineTable';
 import { UnbudgetedTable } from '../components/Budget/UnbudgetedTable';
+import { UnbudgetedDetailModal } from '../components/Budget/UnbudgetedDetailModal';
 import { AddBudgetItemModal } from '../components/Budget/AddBudgetItemModal';
 
 /** Current month as YYYY-MM in the user's local time. */
@@ -29,6 +30,10 @@ export function BudgetPage() {
   const [month, setMonth] = useState<string>(currentMonth());
   const [showAdd, setShowAdd] = useState(false);
   const [editingItem, setEditingItem] = useState<BudgetItem | null>(null);
+  const [detailLine, setDetailLine] = useState<{
+    line: UnbudgetedLine;
+    direction: 'EXPENSE' | 'INCOME';
+  } | null>(null);
   const qc = useQueryClient();
 
   const { data: report, isLoading } = useQuery({
@@ -112,6 +117,7 @@ export function BudgetPage() {
             lines={report.unbudgetedExpense.lines}
             total={report.unbudgetedExpense.total}
             direction="EXPENSE"
+            onRowClick={(line) => setDetailLine({ line, direction: 'EXPENSE' })}
           />
 
           <UnbudgetedTable
@@ -119,8 +125,19 @@ export function BudgetPage() {
             lines={report.unbudgetedIncome.lines}
             total={report.unbudgetedIncome.total}
             direction="INCOME"
+            onRowClick={(line) => setDetailLine({ line, direction: 'INCOME' })}
           />
         </div>
+      )}
+
+      {detailLine && (
+        <UnbudgetedDetailModal
+          month={month}
+          categoryId={detailLine.line.categoryId}
+          categoryName={detailLine.line.categoryName}
+          direction={detailLine.direction}
+          onClose={() => setDetailLine(null)}
+        />
       )}
 
       {showAdd && (

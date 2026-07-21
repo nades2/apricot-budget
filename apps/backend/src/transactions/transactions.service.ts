@@ -24,7 +24,13 @@ export class TransactionsService {
     const where: Prisma.TransactionWhereInput = {
       userId,
       ...(q.accountId ? { accountId: q.accountId } : {}),
-      ...(q.categoryId ? { categoryId: q.categoryId } : {}),
+      // uncategorized=true a priorité sur categoryId (mutuellement exclusifs
+      // sémantiquement mais on tranche défensivement).
+      ...(q.uncategorized
+        ? { categoryId: null }
+        : q.categoryId
+          ? { categoryId: q.categoryId }
+          : {}),
       ...(q.from || q.to
         ? {
             postedAt: {
