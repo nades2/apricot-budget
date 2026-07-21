@@ -100,6 +100,7 @@ export function BudgetPage() {
             planned={report.income.planned}
             actual={report.income.actual}
             direction="INCOME"
+            month={month}
             onEdit={openEdit}
           />
 
@@ -109,6 +110,7 @@ export function BudgetPage() {
             planned={report.expense.planned}
             actual={report.expense.actual}
             direction="EXPENSE"
+            month={month}
             onEdit={openEdit}
           />
 
