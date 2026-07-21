@@ -4,6 +4,24 @@ import { api, Category, CategoryDirection } from '../../lib/api';
 import { isSelectableCategory } from '../../lib/categories';
 import { formatCurrency } from '../../lib/format';
 
+const DIRECTION_LABELS_FR: Record<CategoryDirection, string> = {
+  EXPENSE: 'Dépenses',
+  INCOME: 'Revenus',
+  NEUTRAL: 'Neutres',
+  TRANSFER: 'Transferts',
+};
+
+function groupByDirection(cats: Category[]): [CategoryDirection, Category[]][] {
+  const groups: Record<CategoryDirection, Category[]> = {
+    EXPENSE: [], INCOME: [], NEUTRAL: [], TRANSFER: [],
+  };
+  for (const c of cats) groups[c.direction].push(c);
+  const order: CategoryDirection[] = ['EXPENSE', 'INCOME', 'NEUTRAL', 'TRANSFER'];
+  return order
+    .map((d) => [d, groups[d]] as [CategoryDirection, Category[]])
+    .filter(([, list]) => list.length > 0);
+}
+
 /**
  * Détail d'une ligne "Hors budget" : liste les transactions de la catégorie
  * (ou non catégorisées) pour le mois affiché, avec un dropdown inline pour
@@ -150,14 +168,12 @@ function TxItem({
   const amt = Number(tx.amount);
   const isCredit = amt > 0;
 
-  // Filtre les catégories compatibles avec le signe de la transaction, en
-  // excluant les catégories techniques (Remboursement, Transfert, etc.) que
-  // l'user ne doit pas choisir manuellement — voir lib/categories.ts.
-  const compatible = categories.filter((c) => {
-    if (!isSelectableCategory(c.slug)) return false;
-    if (isCredit) return c.direction === 'INCOME' || c.direction === 'NEUTRAL';
-    return c.direction === 'EXPENSE' || c.direction === 'NEUTRAL';
-  });
+  // Exclut les catégories techniques mais affiche toutes les directions —
+  // un crédit peut aller dans une catégorie EXPENSE (remboursement marchand
+  // qui nette la dépense) et un débit dans INCOME (chargeback qui réduit le
+  // revenu). Voir BudgetLineDetail pour la même logique.
+  const compatible = categories.filter((c) => isSelectableCategory(c.slug));
+  const grouped = groupByDirection(compatible);
 
   const update = useMutation({
     mutationFn: (newCategoryId: string | null) =>
@@ -226,10 +242,14 @@ function TxItem({
         title="Réassigner à une catégorie"
       >
         <option value="">-- Non catégorisée --</option>
-        {compatible.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-          </option>
+        {grouped.map(([dir, list]) => (
+          <optgroup key={dir} label={DIRECTION_LABELS_FR[dir]}>
+            {list.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </optgroup>
         ))}
       </select>
 

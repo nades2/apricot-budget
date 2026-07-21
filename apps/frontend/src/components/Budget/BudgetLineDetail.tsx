@@ -4,6 +4,29 @@ import { api, BudgetDirection, Category, CategoryDirection } from '../../lib/api
 import { isSelectableCategory } from '../../lib/categories';
 import { formatCurrency } from '../../lib/format';
 
+const DIRECTION_LABELS_FR: Record<CategoryDirection, string> = {
+  EXPENSE: 'Dépenses',
+  INCOME: 'Revenus',
+  NEUTRAL: 'Neutres',
+  TRANSFER: 'Transferts',
+};
+
+/**
+ * Groupe une liste de catégories par direction pour l'affichage en optgroup.
+ * L'ordre EXPENSE → INCOME → NEUTRAL est intentionnel : c'est l'ordre le plus
+ * naturel pour un budget centré sur les dépenses.
+ */
+function groupByDirection(cats: Category[]): [CategoryDirection, Category[]][] {
+  const groups: Record<CategoryDirection, Category[]> = {
+    EXPENSE: [], INCOME: [], NEUTRAL: [], TRANSFER: [],
+  };
+  for (const c of cats) groups[c.direction].push(c);
+  const order: CategoryDirection[] = ['EXPENSE', 'INCOME', 'NEUTRAL', 'TRANSFER'];
+  return order
+    .map((d) => [d, groups[d]] as [CategoryDirection, Category[]])
+    .filter(([, list]) => list.length > 0);
+}
+
 /**
  * Détail extensible d'un poste budgété : liste les transactions de la
  * catégorie pour le mois affiché, groupées par marchand (description
@@ -238,14 +261,13 @@ function TxItem({
   const amt = Number(tx.amount);
   const isCredit = amt > 0;
 
-  // Filtre les catégories compatibles avec le signe de la transaction, en
-  // excluant les catégories techniques (Remboursement, Transfert, etc.) que
-  // l'user ne doit pas choisir manuellement — voir lib/categories.ts.
-  const compatible = categories.filter((c) => {
-    if (!isSelectableCategory(c.slug)) return false;
-    if (isCredit) return c.direction === 'INCOME' || c.direction === 'NEUTRAL';
-    return c.direction === 'EXPENSE' || c.direction === 'NEUTRAL';
-  });
+  // Exclut les catégories techniques (Remboursement, Transfert, etc.) mais
+  // affiche TOUTES les directions — un crédit peut légitimement aller dans
+  // une catégorie EXPENSE (remboursement marchand qui nette la dépense) et
+  // un débit dans INCOME (chargeback qui réduit le revenu). Grouper par
+  // direction (optgroup) donne la structure sans imposer une contrainte.
+  const compatible = categories.filter((c) => isSelectableCategory(c.slug));
+  const grouped = groupByDirection(compatible);
 
   const update = useMutation({
     mutationFn: (newCategoryId: string | null) =>
@@ -307,10 +329,14 @@ function TxItem({
         title="Réassigner à une catégorie"
       >
         <option value="">-- Non catégorisée --</option>
-        {compatible.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-          </option>
+        {grouped.map(([dir, list]) => (
+          <optgroup key={dir} label={DIRECTION_LABELS_FR[dir]}>
+            {list.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </optgroup>
         ))}
       </select>
       <span
