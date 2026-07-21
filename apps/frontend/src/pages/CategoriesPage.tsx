@@ -200,25 +200,54 @@ function DeleteCategoryModal({
     (usage?.budgetItems ?? 0) +
     (usage?.mappingRules ?? 0);
 
-  // Cibles compatibles : même direction que la source, non-technique, non-elle-même.
-  // Même direction est un choix de sécurité — mélanger EXPENSE et INCOME
-  // fausserait les rapports. L'user peut toujours créer une catégorie
-  // custom du bon type avant si nécessaire.
+  // Cibles : toutes les catégories non-techniques sauf elle-même.
+  //
+  // On n'impose PAS "même direction" : le cas d'usage principal est justement
+  // de fusionner une INCOME (ex. Remboursement Assurance) vers une EXPENSE
+  // (Santé) pour que le remboursement réduise la dépense au lieu de gonfler
+  // les revenus. Le dropdown groupe par direction pour rester lisible et
+  // signaler visuellement une cible d'autre direction.
   const targets = useMemo(
     () =>
       allCategories.filter(
-        (c) =>
-          c.id !== category.id &&
-          c.direction === category.direction &&
-          isSelectableCategory(c.slug),
+        (c) => c.id !== category.id && isSelectableCategory(c.slug),
       ),
-    [allCategories, category.id, category.direction],
+    [allCategories, category.id],
   );
 
-  // Sélectionne la 1re cible dispo par défaut pour éviter un submit vide.
+  const targetsByDirection = useMemo(() => {
+    const groups: Record<CategoryDirection, Category[]> = {
+      EXPENSE: [], INCOME: [], TRANSFER: [], NEUTRAL: [],
+    };
+    for (const t of targets) groups[t.direction].push(t);
+    for (const dir of Object.keys(groups) as CategoryDirection[]) {
+      groups[dir].sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return groups;
+  }, [targets]);
+
+  // Sélectionne par défaut une cible de MÊME direction si dispo (comportement
+  // le moins surprenant), sinon la première cible tout court.
   useEffect(() => {
-    if (targets.length > 0 && !targetId) setTargetId(targets[0].id);
-  }, [targets, targetId]);
+    if (targetId) return;
+    const sameDir = targetsByDirection[category.direction];
+    if (sameDir.length > 0) setTargetId(sameDir[0].id);
+    else if (targets.length > 0) setTargetId(targets[0].id);
+  }, [targets, targetsByDirection, category.direction, targetId]);
+
+  // La cible sélectionnée a-t-elle une direction différente de la source ?
+  // Si oui, affiche un hint informatif (pas un blocage) — c'est le cas
+  // typique du remboursement INCOME → dépense EXPENSE.
+  const selectedTarget = targets.find((t) => t.id === targetId);
+  const crossDirection =
+    selectedTarget && selectedTarget.direction !== category.direction;
+
+  const DIRECTION_LABELS_FR: Record<CategoryDirection, string> = {
+    EXPENSE: 'Dépenses',
+    INCOME: 'Revenus',
+    TRANSFER: 'Transferts',
+    NEUTRAL: 'Neutres',
+  };
 
   const mergeMut = useMutation({
     mutationFn: () =>
@@ -326,24 +355,44 @@ function DeleteCategoryModal({
                       </div>
                     </label>
                     {mode === 'reassign' && (
-                      <select
-                        value={targetId}
-                        onChange={(e) => setTargetId(e.target.value)}
-                        disabled={pending || targets.length === 0}
-                        className="ml-6 w-[calc(100%-1.5rem)] text-sm rounded px-2.5 py-1.5
-                                   border border-gray-300 dark:border-gray-700
-                                   bg-white dark:bg-gray-900
-                                   text-gray-900 dark:text-gray-100"
-                      >
-                        {targets.length === 0 && (
-                          <option>Aucune cible compatible ({category.direction})</option>
+                      <div className="ml-6 space-y-1.5">
+                        <select
+                          value={targetId}
+                          onChange={(e) => setTargetId(e.target.value)}
+                          disabled={pending || targets.length === 0}
+                          className="w-full text-sm rounded px-2.5 py-1.5
+                                     border border-gray-300 dark:border-gray-700
+                                     bg-white dark:bg-gray-900
+                                     text-gray-900 dark:text-gray-100"
+                        >
+                          {targets.length === 0 && (
+                            <option>Aucune cible disponible</option>
+                          )}
+                          {(['EXPENSE', 'INCOME', 'NEUTRAL', 'TRANSFER'] as CategoryDirection[]).map(
+                            (dir) =>
+                              targetsByDirection[dir].length > 0 && (
+                                <optgroup key={dir} label={DIRECTION_LABELS_FR[dir]}>
+                                  {targetsByDirection[dir].map((c) => (
+                                    <option key={c.id} value={c.id}>
+                                      {c.name}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              ),
+                          )}
+                        </select>
+                        {crossDirection && selectedTarget && (
+                          <div className="text-[11px] text-cat-amber-fg bg-cat-amber-bg rounded px-2 py-1 leading-snug">
+                            <b>Direction différente :</b> tu déplaces{' '}
+                            <b>{DIRECTION_LABELS_FR[category.direction].toLowerCase()}</b>{' '}
+                            vers{' '}
+                            <b>{DIRECTION_LABELS_FR[selectedTarget.direction].toLowerCase()}</b>.
+                            {category.direction === 'INCOME' && selectedTarget.direction === 'EXPENSE' && (
+                              <> Les crédits nettoyeront la dépense de ce poste (comportement voulu pour un remboursement marchand).</>
+                            )}
+                          </div>
                         )}
-                        {targets.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
+                      </div>
                     )}
 
                     <label className="flex items-start gap-2 text-sm cursor-pointer">
