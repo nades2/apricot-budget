@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { MappingMatchType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
@@ -110,6 +110,11 @@ export class TransactionsService {
    *
    * Phase 1 note: quand `categoryId` change, on garde le split (unique en
    * Phase 1) en cohérence via la même transaction Prisma.
+   *
+   * Opt-in `learnRule` : crée (ou upsert) une CsvMappingRule EXACT sur la
+   * description exacte de la transaction, priorité 200, autoCreated=true.
+   * Les imports CSV futurs classeront automatiquement les tx de description
+   * identique. Ignoré si categoryId est null ou absent.
    */
   async update(userId: string, id: string, dto: UpdateTransactionDto) {
     const existing = await this.findOne(userId, id);
@@ -166,6 +171,38 @@ export class TransactionsService {
         }
         // Si >1 splits: on ne touche à rien — la source de vérité est la
         // table splits, l'utilisateur doit passer par l'API dédiée.
+      }
+
+      // Opt-in : mémoriser la règle "cette description = cette catégorie"
+      // pour les imports CSV futurs. On upsert pour ne pas casser si une
+      // règle existe déjà avec la même clé (userId, matchType=EXACT, pattern).
+      // Un lastUsedAt/timesUsed indique que la règle a été renforcée par une
+      // action utilisateur, utile pour un tri "règles récemment utilisées".
+      if (dto.learnRule && dto.categoryId) {
+        await tx.csvMappingRule.upsert({
+          where: {
+            uq_rule_user_pattern: {
+              userId,
+              matchType: MappingMatchType.EXACT,
+              pattern: existing.description,
+            },
+          },
+          update: {
+            categoryId: dto.categoryId,
+            timesUsed: { increment: 1 },
+            lastUsedAt: new Date(),
+          },
+          create: {
+            userId,
+            categoryId: dto.categoryId,
+            matchType: MappingMatchType.EXACT,
+            pattern: existing.description,
+            autoCreated: true,   // marqueur : créée depuis reclassif, pas manuelle
+            timesUsed: 1,
+            lastUsedAt: new Date(),
+            priority: 200,       // = même prio que les règles apprises à l'import
+          },
+        });
       }
 
       return updated;

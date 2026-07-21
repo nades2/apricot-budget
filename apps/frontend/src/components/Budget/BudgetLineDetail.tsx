@@ -234,6 +234,7 @@ function TxItem({
   currentCategoryId: string;
 }) {
   const qc = useQueryClient();
+  const [learnRule, setLearnRule] = useState(false);
   const amt = Number(tx.amount);
   const isCredit = amt > 0;
 
@@ -248,14 +249,22 @@ function TxItem({
 
   const update = useMutation({
     mutationFn: (newCategoryId: string | null) =>
-      api.patch<TxRow>(`/transactions/${tx.id}`, { categoryId: newCategoryId }),
+      api.patch<TxRow>(`/transactions/${tx.id}`, {
+        categoryId: newCategoryId,
+        // learnRule ignoré côté backend si categoryId est null.
+        ...(learnRule && newCategoryId ? { learnRule: true } : {}),
+      }),
     onSuccess: () => {
+      // Reset la case après un apply réussi pour éviter d'appliquer par
+      // inadvertance la même règle au prochain changement de catégorie.
+      setLearnRule(false);
       // Invalidations larges : la reclassification affecte les rapports.
       qc.invalidateQueries({ queryKey: ['budget-report', month] });
       qc.invalidateQueries({ queryKey: ['budget-line-tx', month, currentCategoryId] });
       qc.invalidateQueries({ queryKey: ['unbudgeted-tx', month] });
       qc.invalidateQueries({ queryKey: ['calendar'] });
       qc.invalidateQueries({ queryKey: ['forecast'] });
+      qc.invalidateQueries({ queryKey: ['csv-mapping-rules'] });
     },
   });
 
@@ -270,6 +279,20 @@ function TxItem({
       <span className="text-gray-400 dark:text-gray-500 truncate max-w-[100px] hidden sm:inline">
         {tx.account.name}
       </span>
+      <label
+        className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400 shrink-0 cursor-pointer select-none"
+        title={`Créer une règle : toujours classer les transactions de description exacte "${tx.description}" dans la catégorie choisie ci-contre. Les imports CSV futurs appliqueront cette règle automatiquement.`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <input
+          type="checkbox"
+          checked={learnRule}
+          onChange={(e) => setLearnRule(e.target.checked)}
+          disabled={update.isPending}
+          className="w-3 h-3 accent-cat-teal-fg"
+        />
+        <span className="hidden md:inline">règle</span>
+      </label>
       <select
         value={tx.category?.id ?? ''}
         onChange={(e) => update.mutate(e.target.value || null)}

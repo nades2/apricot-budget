@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, Category, CategoryDirection } from '../../lib/api';
 import { isSelectableCategory } from '../../lib/categories';
@@ -146,6 +146,7 @@ function TxItem({
   currentCategoryId: string | null;
 }) {
   const qc = useQueryClient();
+  const [learnRule, setLearnRule] = useState(false);
   const amt = Number(tx.amount);
   const isCredit = amt > 0;
 
@@ -160,12 +161,17 @@ function TxItem({
 
   const update = useMutation({
     mutationFn: (newCategoryId: string | null) =>
-      api.patch<TxRow>(`/transactions/${tx.id}`, { categoryId: newCategoryId }),
+      api.patch<TxRow>(`/transactions/${tx.id}`, {
+        categoryId: newCategoryId,
+        ...(learnRule && newCategoryId ? { learnRule: true } : {}),
+      }),
     onSuccess: () => {
+      setLearnRule(false);
       qc.invalidateQueries({ queryKey: ['budget-report', month] });
       qc.invalidateQueries({ queryKey: ['unbudgeted-tx', month, currentCategoryId ?? 'null'] });
       qc.invalidateQueries({ queryKey: ['calendar'] });
       qc.invalidateQueries({ queryKey: ['forecast'] });
+      qc.invalidateQueries({ queryKey: ['csv-mapping-rules'] });
     },
   });
 
@@ -192,6 +198,20 @@ function TxItem({
           <span>{tx.account.name}</span>
         </div>
       </div>
+
+      <label
+        className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400 shrink-0 cursor-pointer select-none"
+        title={`Créer une règle : toujours classer les transactions de description exacte "${tx.description}" dans la catégorie choisie ci-contre. Les imports CSV futurs appliqueront cette règle automatiquement.`}
+      >
+        <input
+          type="checkbox"
+          checked={learnRule}
+          onChange={(e) => setLearnRule(e.target.checked)}
+          disabled={update.isPending}
+          className="w-3 h-3 accent-cat-teal-fg"
+        />
+        <span>règle</span>
+      </label>
 
       <select
         value={tx.category?.id ?? ''}

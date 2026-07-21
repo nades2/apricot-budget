@@ -45,12 +45,16 @@ export type BudgetReport = {
   to: string;
   income: {
     planned: string;
-    actual: string;
+    actual: string;         // scope budgété seulement (somme des lines.actual)
+    /** actual + total des lignes "Hors budget · Revenus". Vrai cashflow entrant. */
+    actualTotal: string;
     lines: BudgetLine[];
   };
   expense: {
     planned: string;
-    actual: string;
+    actual: string;         // scope budgété seulement
+    /** actual + total des lignes "Hors budget · Dépenses". Vrai cashflow sortant. */
+    actualTotal: string;
     lines: BudgetLine[];
   };
   /**
@@ -80,9 +84,15 @@ export type BudgetReport = {
   };
   net: {
     planned: string;                // income.planned - expense.planned
-    actual: string;                 // income.actual - expense.actual
-    variance: string;               // actual - planned
-    verdict: 'positive' | 'negative' | 'neutral';
+    actual: string;                 // income.actual - expense.actual (scope budgété)
+    /** income.actualTotal - expense.actualTotal — vrai résultat du mois. */
+    actualTotal: string;
+    variance: string;               // actual - planned (scope budgété)
+    /** actualTotal - planned — écart vrai cashflow vs. plan. */
+    varianceTotal: string;
+    verdict: 'positive' | 'negative' | 'neutral';         // basé sur actual
+    /** Verdict basé sur actualTotal — le "résultat du mois" que voit l'user. */
+    verdictTotal: 'positive' | 'negative' | 'neutral';
   };
 };
 
@@ -212,6 +222,12 @@ export class BudgetService {
     // virement inter-comptes). Ces mouvements ne représentent pas de vraies
     // dépenses/revenus catégoriels et gonfleraient artificiellement les
     // "actuals" d'une catégorie comme "Paiement carte de crédit".
+    //
+    // Phase 6.2 (fix) : les remboursements marchands (crédits +100$ dans une
+    // catégorie DÉPENSE comme Santé pour un remboursement d'assurance physio)
+    // NETTENT contre les dépenses de la même catégorie. Actual d'un poste
+    // EXPENSE = |débits| − crédits. Symétriquement, actual d'un poste INCOME
+    // = crédits − |débits| (chargeback rare mais possible).
     for (const item of items) {
       // Skip if we already computed this category.
       if (
@@ -240,9 +256,16 @@ export class BudgetService {
           },
         }),
       ]);
-      actualIncomeByCat.set(item.categoryId, posAgg._sum.amount ?? new Prisma.Decimal(0));
-      // Store as positive absolute for expense display.
-      actualExpenseByCat.set(item.categoryId, (negAgg._sum.amount ?? new Prisma.Decimal(0)).abs());
+      const pos = posAgg._sum.amount ?? new Prisma.Decimal(0);
+      const negAbs = (negAgg._sum.amount ?? new Prisma.Decimal(0)).abs();
+      if (item.direction === 'EXPENSE') {
+        // Net dépensé : dépenses − remboursements. Peut être négatif si le
+        // poste est sur-remboursé (cas rare, ex. réclamation multiple).
+        actualExpenseByCat.set(item.categoryId, negAbs.minus(pos));
+      } else {
+        // Net perçu : revenus − chargeback/débits.
+        actualIncomeByCat.set(item.categoryId, pos.minus(negAbs));
+      }
     }
 
     const incomeLines: BudgetLine[] = [];
@@ -473,12 +496,34 @@ export class BudgetService {
     const netVariance = netActual.minus(netPlanned);
     const verdict = netActual.gt(0) ? 'positive' : netActual.lt(0) ? 'negative' : 'neutral';
 
+    // Totaux "cashflow" — incluent le hors budget. Le staging (Remboursement
+    // à reclasser) reste EXCLU intentionnellement : ces tx sont dans un
+    // no-man's-land tant que non requalifiées, les mélanger fausserait le
+    // vrai résultat autant que le mode "budgété seul".
+    const incomeActualTotal = incomeActual.plus(unbudgetedIncomeTotal);
+    const expenseActualTotal = expenseActual.plus(unbudgetedExpenseTotal);
+    const netActualTotal = incomeActualTotal.minus(expenseActualTotal);
+    const netVarianceTotal = netActualTotal.minus(netPlanned);
+    const verdictTotal = netActualTotal.gt(0)
+      ? 'positive'
+      : netActualTotal.lt(0) ? 'negative' : 'neutral';
+
     return {
       month,
       from: monthStart.toISOString().slice(0, 10),
       to: monthEnd.toISOString().slice(0, 10),
-      income:  { planned: incomePlanned.toString(),  actual: incomeActual.toString(),  lines: incomeLines },
-      expense: { planned: expensePlanned.toString(), actual: expenseActual.toString(), lines: expenseLines },
+      income:  {
+        planned: incomePlanned.toString(),
+        actual: incomeActual.toString(),
+        actualTotal: incomeActualTotal.toString(),
+        lines: incomeLines,
+      },
+      expense: {
+        planned: expensePlanned.toString(),
+        actual: expenseActual.toString(),
+        actualTotal: expenseActualTotal.toString(),
+        lines: expenseLines,
+      },
       unbudgetedExpense: {
         total: unbudgetedExpenseTotal.toString(),
         lines: unbudgetedExpenseLines,
@@ -494,8 +539,11 @@ export class BudgetService {
       net: {
         planned: netPlanned.toString(),
         actual: netActual.toString(),
+        actualTotal: netActualTotal.toString(),
         variance: netVariance.toString(),
+        varianceTotal: netVarianceTotal.toString(),
         verdict,
+        verdictTotal,
       },
     };
   }

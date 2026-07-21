@@ -122,7 +122,10 @@ function Row({
   const planned = Number(line.planned);
   const actual = Number(line.actual);
   const variance = Number(line.variance);
-  const ratio = planned > 0 ? Math.min(actual / planned, 1.5) : 0;
+  // Clamp le ratio à [0, 1.5] — actual peut être négatif quand un poste
+  // dépense est sur-remboursé (ex. Santé : 100$ physio − 200$ remboursement
+  // = -100$). Sans le max(0, …), la barre aurait une largeur négative.
+  const ratio = planned > 0 ? Math.max(0, Math.min(actual / planned, 1.5)) : 0;
 
   const color = line.categoryColor ?? 'gray';
   const statusColor: Record<BudgetLine['status'], string> = {

@@ -196,8 +196,20 @@ export type BudgetReport = {
   month: string;
   from: string;
   to: string;
-  income:  { planned: string; actual: string; lines: BudgetLine[] };
-  expense: { planned: string; actual: string; lines: BudgetLine[] };
+  income: {
+    planned: string;
+    /** Réel scope budgété (somme des lines.actual, remboursements nettés). */
+    actual: string;
+    /** Réel total = actual + total hors budget. Vrai cashflow entrant. */
+    actualTotal: string;
+    lines: BudgetLine[];
+  };
+  expense: {
+    planned: string;
+    actual: string;
+    actualTotal: string;
+    lines: BudgetLine[];
+  };
   /** Catégories ayant des transactions ce mois-ci mais aucun BudgetItem. */
   unbudgetedExpense: { total: string; lines: UnbudgetedLine[] };
   unbudgetedIncome:  { total: string; lines: UnbudgetedLine[] };
@@ -208,9 +220,12 @@ export type BudgetReport = {
   staging: { total: string; lines: UnbudgetedLine[] };
   net: {
     planned: string;
-    actual: string;
-    variance: string;
+    actual: string;                // scope budgété
+    actualTotal: string;           // + hors budget
+    variance: string;              // actual - planned
+    varianceTotal: string;         // actualTotal - planned
     verdict: 'positive' | 'negative' | 'neutral';
+    verdictTotal: 'positive' | 'negative' | 'neutral';
   };
 };
 
