@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { Public } from './public.decorator';
@@ -25,5 +26,18 @@ export class AuthController {
   @Get('me')
   me(@CurrentUser() user: AuthenticatedUser) {
     return this.auth.me(user.id);
+  }
+
+  /**
+   * Changement de mot de passe. Exige le mot de passe actuel + un nouveau
+   * (min 8 chars, différent de l'actuel). Ne renvoie pas de nouveau token —
+   * la session courante reste valide.
+   */
+  @Patch('password')
+  changePassword(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    return this.auth.changePassword(user.id, dto);
   }
 }

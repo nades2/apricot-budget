@@ -8,6 +8,7 @@ import { AccountsPage } from './pages/AccountsPage';
 import { BudgetPage } from './pages/BudgetPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { ProfilePage } from './pages/ProfilePage';
 import { useTheme } from './lib/theme';
 import { clearSession, useSession } from './lib/auth';
 
@@ -96,9 +97,14 @@ function AuthedShell() {
           >
             <i className="ti ti-logout text-base" aria-hidden="true" />
           </button>
-          <div className="w-8 h-8 rounded-full bg-brand-200 text-brand-800 flex items-center justify-center text-xs font-medium" title={session?.user.email}>
+          <NavLink
+            to="/profile"
+            className="w-8 h-8 rounded-full bg-brand-200 text-brand-800 flex items-center justify-center text-xs font-medium hover:bg-brand-300 transition"
+            title={`${session?.user.email} — Profil`}
+            aria-label="Profil"
+          >
             {initials || '?'}
-          </div>
+          </NavLink>
         </div>
       </header>
 
@@ -129,6 +135,7 @@ function AuthedShell() {
             <Route path="/import"   element={<ImportPage />} />
             <Route path="/detections" element={<DetectionsPage />} />
             <Route path="/categories" element={<CategoriesPage />} />
+            <Route path="/profile"    element={<ProfilePage />} />
             <Route path="*"         element={<div className="p-6 text-sm text-gray-500 dark:text-gray-400">À venir…</div>} />
           </Routes>
         </main>
