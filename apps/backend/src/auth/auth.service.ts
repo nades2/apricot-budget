@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
@@ -11,9 +12,35 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly config: ConfigService,
   ) {}
 
+  /**
+   * Parse la env var `INVITE_CODES` en set de codes valides.
+   * Format : "code1,code2,code3" (comma-separated, whitespace trimmed).
+   * Vide/absent → set vide → registration ouverte à tous (mode dev).
+   */
+  private getInviteCodes(): Set<string> {
+    const raw = this.config.get<string>('INVITE_CODES') ?? '';
+    return new Set(
+      raw.split(',').map((c) => c.trim()).filter((c) => c.length > 0),
+    );
+  }
+
   async register(dto: RegisterDto) {
+    // --- Contrôle d'accès par code d'invitation ---
+    // Si INVITE_CODES est défini, la registration devient invitation-only.
+    // Empêche le spam de comptes sur une app familiale exposée sur internet.
+    const validCodes = this.getInviteCodes();
+    if (validCodes.size > 0) {
+      if (!dto.inviteCode) {
+        throw new ForbiddenException('Code d\'invitation requis');
+      }
+      if (!validCodes.has(dto.inviteCode)) {
+        throw new ForbiddenException('Code d\'invitation invalide');
+      }
+    }
+
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() } });
     if (existing) throw new ConflictException('Email déjà utilisé');
     const passwordHash = await bcrypt.hash(dto.password, 10);

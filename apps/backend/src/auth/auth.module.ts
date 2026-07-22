@@ -7,6 +7,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { loadJwtSecret } from './jwt-secret';
 
 @Module({
   imports: [
@@ -15,7 +16,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('JWT_SECRET') ?? 'change-me-in-env',
+        secret: loadJwtSecret(config),
         signOptions: { expiresIn: '7d' },
       }),
     }),

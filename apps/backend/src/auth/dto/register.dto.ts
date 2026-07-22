@@ -12,4 +12,14 @@ export class RegisterDto {
   @IsString()
   @Length(1, 60)
   displayName?: string;
+
+  /**
+   * Code d'invitation — requis en production quand `INVITE_CODES` est défini.
+   * Le service valide la présence conditionnelle : si la config a des codes,
+   * ce champ devient obligatoire ; sinon (dev sans config), il est ignoré.
+   */
+  @IsOptional()
+  @IsString()
+  @Length(1, 100)
+  inviteCode?: string;
 }

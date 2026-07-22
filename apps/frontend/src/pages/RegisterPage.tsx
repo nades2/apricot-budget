@@ -10,9 +10,16 @@ export function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
 
   const register = useMutation({
-    mutationFn: () => api.post<Session>('/auth/register', { email, password, displayName: displayName || undefined }),
+    mutationFn: () =>
+      api.post<Session>('/auth/register', {
+        email,
+        password,
+        displayName: displayName || undefined,
+        inviteCode: inviteCode || undefined,
+      }),
     onSuccess: (s) => {
       setSession(s);
       nav('/calendar', { replace: true });
@@ -25,6 +32,16 @@ export function RegisterPage() {
         onSubmit={(e) => { e.preventDefault(); register.mutate(); }}
         className="space-y-3"
       >
+        <Field label="Code d'invitation">
+          <input
+            value={inviteCode}
+            onChange={(e) => setInviteCode(e.target.value)}
+            placeholder="Requis pour créer un compte"
+            required
+            autoFocus
+            className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 rounded-md px-3 py-2 text-sm"
+          />
+        </Field>
         <Field label="Nom (optionnel)">
           <input
             value={displayName}
@@ -34,7 +51,7 @@ export function RegisterPage() {
         </Field>
         <Field label="Courriel">
           <input
-            type="email" autoFocus required value={email}
+            type="email" required value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 rounded-md px-3 py-2 text-sm"
           />
