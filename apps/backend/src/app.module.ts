@@ -21,13 +21,20 @@ import { ReconciliationModule } from './reconciliation/reconciliation.module';
       isGlobal: true,
       envFilePath: ['../../.env', '../.env', '.env'],
     }),
-    // Rate limiting — 3 tiers pour cibler différents scénarios.
-    // `short` : anti-burst (60 req / 10s / IP) sur toutes les routes.
-    // `medium` : anti-scraping (300 req / min / IP).
-    // Les endpoints auth (login, register, password) ont des limites plus
-    // strictes appliquées via @Throttle() dans AuthController.
+    // Rate limiting — 2 tiers pour cibler différents scénarios.
+    // `default` : anti-burst (60 req / 10s / IP) sur toutes les routes.
+    // `medium`  : anti-scraping (300 req / min / IP).
+    //
+    // IMPORTANT : le nom `default` doit correspondre exactement à celui
+    // ciblé par @Throttle({ default: {...} }) dans AuthController — sinon
+    // l'override est silencieusement ignoré et seuls les limits globaux
+    // s'appliquent (bug caché : les tests semblent passer mais les
+    // endpoints auth ne sont pas plus stricts que le reste).
+    //
+    // Les endpoints auth (login, register, password) overrident ces
+    // limites via @Throttle() dans AuthController.
     ThrottlerModule.forRoot([
-      { name: 'short', ttl: 10_000, limit: 60 },
+      { name: 'default', ttl: 10_000, limit: 60 },
       { name: 'medium', ttl: 60_000, limit: 300 },
     ]),
     PrismaModule,
