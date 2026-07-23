@@ -62,7 +62,7 @@ export const BUDGET_PRESETS: BudgetPreset[] = [
   // Taxe scolaire — CSSDHR : 2 versements, mi-août et mi-novembre.
   {
     key: 'taxe-scolaire-v1',
-    name: 'Taxe scolaire — 1er versement',
+    name: 'Taxe scolaire — 15 août',
     categorySlug: 'taxe-scolaire',
     direction: 'EXPENSE',
     amount: 150,
@@ -73,7 +73,7 @@ export const BUDGET_PRESETS: BudgetPreset[] = [
   },
   {
     key: 'taxe-scolaire-v2',
-    name: 'Taxe scolaire — 2e versement',
+    name: 'Taxe scolaire — 15 novembre',
     categorySlug: 'taxe-scolaire',
     direction: 'EXPENSE',
     amount: 150,
@@ -87,7 +87,7 @@ export const BUDGET_PRESETS: BudgetPreset[] = [
   // hétérogènes (12/16/18/17), donc un BudgetItem par versement.
   {
     key: 'taxe-municipale-v1',
-    name: 'Taxe municipale — 1er versement',
+    name: 'Taxe municipale — 12 février',
     categorySlug: 'taxe-municipale',
     direction: 'EXPENSE',
     amount: 800,
@@ -98,7 +98,7 @@ export const BUDGET_PRESETS: BudgetPreset[] = [
   },
   {
     key: 'taxe-municipale-v2',
-    name: 'Taxe municipale — 2e versement',
+    name: 'Taxe municipale — 16 avril',
     categorySlug: 'taxe-municipale',
     direction: 'EXPENSE',
     amount: 800,
@@ -109,7 +109,7 @@ export const BUDGET_PRESETS: BudgetPreset[] = [
   },
   {
     key: 'taxe-municipale-v3',
-    name: 'Taxe municipale — 3e versement',
+    name: 'Taxe municipale — 18 juin',
     categorySlug: 'taxe-municipale',
     direction: 'EXPENSE',
     amount: 800,
@@ -120,7 +120,7 @@ export const BUDGET_PRESETS: BudgetPreset[] = [
   },
   {
     key: 'taxe-municipale-v4',
-    name: 'Taxe municipale — 4e versement',
+    name: 'Taxe municipale — 17 septembre',
     categorySlug: 'taxe-municipale',
     direction: 'EXPENSE',
     amount: 800,
