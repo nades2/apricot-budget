@@ -56,18 +56,30 @@ export const BUDGET_PRESETS: BudgetPreset[] = [
   { key: 'paiement-mc',      name: 'Paiement Mastercard',      categorySlug: 'paiement-carte-credit', direction: 'EXPENSE', amount: 500,  recurrence: 'MONTHLY',  emoji: '💳' },
 
   // --- Taxes (dates fixes annuelles) ---
-  // Taxe scolaire — CSSDHR : 2 versements, mi-août + mi-novembre, même jour (15).
-  //   Un seul BudgetItem couvre les 2 dates via BYMONTH=8,11;BYMONTHDAY=15.
+  // Un preset par versement — les dates restent visibles et éditables dans
+  // le champ "Date d'ancrage" du modal budget.
+
+  // Taxe scolaire — CSSDHR : 2 versements, mi-août et mi-novembre.
   {
-    key: 'taxe-scolaire',
-    name: 'Taxe scolaire',
+    key: 'taxe-scolaire-v1',
+    name: 'Taxe scolaire — 1er versement',
     categorySlug: 'taxe-scolaire',
     direction: 'EXPENSE',
-    amount: 300,
+    amount: 150,
     recurrence: 'YEARLY',
     emoji: '🏫',
-    rrule: 'FREQ=YEARLY;BYMONTH=8,11;BYMONTHDAY=15',
     anchorMonth: 8,
+    anchorDay: 15,
+  },
+  {
+    key: 'taxe-scolaire-v2',
+    name: 'Taxe scolaire — 2e versement',
+    categorySlug: 'taxe-scolaire',
+    direction: 'EXPENSE',
+    amount: 150,
+    recurrence: 'YEARLY',
+    emoji: '🏫',
+    anchorMonth: 11,
     anchorDay: 15,
   },
 
