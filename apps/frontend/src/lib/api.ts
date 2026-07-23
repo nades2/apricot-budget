@@ -170,6 +170,32 @@ export type BudgetPreset = {
   anchorDay?: number;
 };
 
+// --- Taxes bundle --------------------------------------------------------
+
+export type TaxBundleKind = 'scolaire' | 'municipale';
+
+export type TaxBundleDate = {
+  label: string;
+  month: number;
+  day: number;
+};
+
+export type TaxBundle = {
+  kind: TaxBundleKind;
+  displayName: string;
+  categorySlug: string;
+  emoji: string;
+  defaultAnnualAmount: number;
+  dates: TaxBundleDate[];
+};
+
+export type CreateTaxesBundleResult = {
+  bundle: TaxBundleKind;
+  year: number;
+  total: number;
+  items: BudgetItem[];
+};
+
 export type BudgetLine = {
   itemId: string;
   name: string;

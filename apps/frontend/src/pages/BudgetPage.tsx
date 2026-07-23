@@ -6,6 +6,7 @@ import { BudgetLineTable } from '../components/Budget/BudgetLineTable';
 import { UnbudgetedTable } from '../components/Budget/UnbudgetedTable';
 import { UnbudgetedDetailModal } from '../components/Budget/UnbudgetedDetailModal';
 import { AddBudgetItemModal } from '../components/Budget/AddBudgetItemModal';
+import { AddTaxesBundleModal } from '../components/Budget/AddTaxesBundleModal';
 
 /** Current month as YYYY-MM in the user's local time. */
 function currentMonth(): string {
@@ -29,6 +30,7 @@ function monthLabel(iso: string): string {
 export function BudgetPage() {
   const [month, setMonth] = useState<string>(currentMonth());
   const [showAdd, setShowAdd] = useState(false);
+  const [showTaxesBundle, setShowTaxesBundle] = useState(false);
   const [editingItem, setEditingItem] = useState<BudgetItem | null>(null);
   const [detailLine, setDetailLine] = useState<{
     line: UnbudgetedLine;
@@ -78,6 +80,12 @@ export function BudgetPage() {
             className="px-2 py-1 text-xs border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             mois →
+          </button>
+          <button
+            onClick={() => setShowTaxesBundle(true)}
+            className="ml-2 px-3 py-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-md text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800"
+          >
+            + Taxes
           </button>
           <button
             onClick={() => setShowAdd(true)}
@@ -158,6 +166,16 @@ export function BudgetPage() {
           onSaved={() => {
             invalidateAll();
             setShowAdd(false);
+          }}
+        />
+      )}
+
+      {showTaxesBundle && (
+        <AddTaxesBundleModal
+          onClose={() => setShowTaxesBundle(false)}
+          onSaved={() => {
+            invalidateAll();
+            setShowTaxesBundle(false);
           }}
         />
       )}

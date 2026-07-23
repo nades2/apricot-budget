@@ -3,7 +3,8 @@ import { BudgetDirection, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBudgetItemDto } from './dto/create-budget-item.dto';
 import { UpdateBudgetItemDto } from './dto/update-budget-item.dto';
-import { BUDGET_PRESETS, BudgetPreset } from './presets';
+import { CreateTaxesBundleDto } from './dto/create-taxes-bundle.dto';
+import { BUDGET_PRESETS, BudgetPreset, TAX_BUNDLES, TaxBundle } from './presets';
 import { occurrencesInMonth } from './recurrence';
 
 /**
@@ -181,6 +182,92 @@ export class BudgetService {
       ...p,
       categoryId: bySlug.get(p.categorySlug) ?? null,
     }));
+  }
+
+  // ---- Taxes bundle -------------------------------------------------------
+
+  /**
+   * Retourne la config statique des bundles de taxes pour l'UI (dropdown +
+   * aperçu des versements). Pas de résolution de catégorie ici — la création
+   * s'occupera de le faire, atomiquement.
+   */
+  taxBundles(): TaxBundle[] {
+    return TAX_BUNDLES;
+  }
+
+  /**
+   * Crée en une seule opération tous les BudgetItems annuels d'une taxe.
+   * Le total annuel est réparti également entre les versements du bundle
+   * (arrondi au cent, dernier versement absorbe le reste).
+   *
+   * Idempotence : ne se déclenche pas si l'utilisateur possède déjà des
+   * BudgetItems dans la même catégorie avec un anchorDate dans l'année
+   * ciblée — protège contre les doubles clics et les re-créations.
+   */
+  async createTaxesBundle(userId: string, dto: CreateTaxesBundleDto) {
+    const bundle = TAX_BUNDLES.find((b) => b.kind === dto.kind);
+    if (!bundle) {
+      throw new NotFoundException(`Bundle de taxes "${dto.kind}" introuvable`);
+    }
+
+    const category = await this.prisma.category.findFirst({
+      where: { slug: bundle.categorySlug, OR: [{ userId }, { userId: null }] },
+      select: { id: true },
+    });
+    if (!category) {
+      throw new NotFoundException(
+        `Catégorie "${bundle.categorySlug}" introuvable — a-t-elle été seedée ?`,
+      );
+    }
+
+    // Anti-doublon : si l'utilisateur a déjà des postes pour cette catégorie
+    // dans l'année ciblée, on refuse et on lui laisse le soin de nettoyer.
+    const yearStart = new Date(Date.UTC(dto.year, 0, 1));
+    const yearEnd = new Date(Date.UTC(dto.year + 1, 0, 1));
+    const existing = await this.prisma.budgetItem.count({
+      where: {
+        userId,
+        categoryId: category.id,
+        anchorDate: { gte: yearStart, lt: yearEnd },
+      },
+    });
+    if (existing > 0) {
+      throw new Error(
+        `${existing} poste(s) de ${bundle.displayName} existent déjà pour ${dto.year}. Supprime-les avant de recréer le bundle.`,
+      );
+    }
+
+    // Répartition du total. On arrondit chaque versement au cent, puis on
+    // ajuste le dernier pour absorber les erreurs d'arrondi.
+    const count = bundle.dates.length;
+    const perInstallment = Math.round((dto.annualTotal / count) * 100) / 100;
+    const totalOfAllButLast = perInstallment * (count - 1);
+    const lastAmount = Math.round((dto.annualTotal - totalOfAllButLast) * 100) / 100;
+
+    const created = await this.prisma.$transaction(
+      bundle.dates.map((d, idx) => {
+        const amount = idx === count - 1 ? lastAmount : perInstallment;
+        const anchorDate = new Date(Date.UTC(dto.year, d.month - 1, d.day));
+        return this.prisma.budgetItem.create({
+          data: {
+            userId,
+            categoryId: category.id,
+            name: `${bundle.displayName.split(' (')[0]} — ${d.label.split(' — ')[1] ?? d.label}`,
+            direction: 'EXPENSE',
+            amount: new Prisma.Decimal(amount),
+            recurrence: 'YEARLY',
+            anchorDate,
+          },
+        });
+      }),
+    );
+
+    return {
+      bundle: bundle.kind,
+      year: dto.year,
+      total: dto.annualTotal,
+      items: created,
+    };
   }
 
   // ---- Monthly report -----------------------------------------------------

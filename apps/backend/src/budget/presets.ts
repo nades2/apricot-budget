@@ -1,6 +1,64 @@
 import { BudgetDirection, BudgetRecurrence } from '@prisma/client';
 
 /**
+ * Bundles de taxes — un raccourci qui crée en une seule opération tous les
+ * versements d'une taxe annuelle (scolaire ou municipale). L'utilisateur
+ * entre le total annuel ; le service répartit également le montant sur les
+ * dates fixes définies ici.
+ */
+export type TaxBundleKind = 'scolaire' | 'municipale';
+
+export type TaxBundleDate = {
+  /** Étiquette affichée à l'utilisateur (ex: "1er versement — 12 février"). */
+  label: string;
+  /** Mois 1-12. */
+  month: number;
+  /** Jour 1-31. */
+  day: number;
+};
+
+export type TaxBundle = {
+  kind: TaxBundleKind;
+  /** Nom affiché dans le picker. */
+  displayName: string;
+  /** Slug de la catégorie système (voir prisma/seed.ts). */
+  categorySlug: string;
+  emoji: string;
+  /** Total annuel par défaut suggéré dans le formulaire. */
+  defaultAnnualAmount: number;
+  /** Dates fixes des versements. La somme des amounts après répartition
+   *  égalera le total annuel. */
+  dates: TaxBundleDate[];
+};
+
+export const TAX_BUNDLES: TaxBundle[] = [
+  {
+    kind: 'scolaire',
+    displayName: 'Taxe scolaire (CSSDHR)',
+    categorySlug: 'taxe-scolaire',
+    emoji: '🏫',
+    defaultAnnualAmount: 300,
+    dates: [
+      { label: '1er versement — 15 août',      month: 8,  day: 15 },
+      { label: '2e versement — 15 novembre',   month: 11, day: 15 },
+    ],
+  },
+  {
+    kind: 'municipale',
+    displayName: 'Taxe municipale (Saint-Jean-sur-Richelieu)',
+    categorySlug: 'taxe-municipale',
+    emoji: '🏛️',
+    defaultAnnualAmount: 3200,
+    dates: [
+      { label: '1er versement — 12 février',   month: 2, day: 12 },
+      { label: '2e versement — 16 avril',      month: 4, day: 16 },
+      { label: '3e versement — 18 juin',       month: 6, day: 18 },
+      { label: '4e versement — 17 septembre',  month: 9, day: 17 },
+    ],
+  },
+];
+
+/**
  * "Postes types" — proposés dans le picker de création. Chaque preset porte
  * un slug de catégorie déjà seedée (voir prisma/seed.ts). L'utilisateur peut
  * ajuster le nom, le montant et l'anchorDate avant de confirmer.

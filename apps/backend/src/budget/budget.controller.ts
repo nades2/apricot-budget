@@ -12,6 +12,7 @@ import {
 import { BudgetService } from './budget.service';
 import { CreateBudgetItemDto } from './dto/create-budget-item.dto';
 import { UpdateBudgetItemDto } from './dto/update-budget-item.dto';
+import { CreateTaxesBundleDto } from './dto/create-taxes-bundle.dto';
 import { AuthenticatedUser, CurrentUser } from '../common/current-user.decorator';
 
 @Controller('budget')
@@ -45,6 +46,28 @@ export class BudgetController {
   @Get('presets')
   presets(@CurrentUser() user: AuthenticatedUser) {
     return this.budget.presets(user.id);
+  }
+
+  /**
+   * GET /api/budget/tax-bundles
+   * Config statique des bundles de taxes (scolaire, municipale) — utilisé
+   * par le modal frontend pour afficher les dates et calculer l'aperçu.
+   */
+  @Get('tax-bundles')
+  taxBundles() {
+    return this.budget.taxBundles();
+  }
+
+  /**
+   * POST /api/budget/tax-bundles
+   * Crée en un coup tous les versements d'une taxe annuelle.
+   */
+  @Post('tax-bundles')
+  createTaxesBundle(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateTaxesBundleDto,
+  ) {
+    return this.budget.createTaxesBundle(user.id, dto);
   }
 
   /**
