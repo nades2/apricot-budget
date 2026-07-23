@@ -146,7 +146,7 @@ function Row({
         onClick={() => setExpanded((v) => !v)}
         className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 dark:bg-gray-800/40 group"
       >
-        <td className="px-3 py-2 text-gray-400 dark:text-gray-500 text-xs">
+        <td className="px-3 py-2 text-gray-500 dark:text-gray-300 text-base leading-none w-6">
           {expanded ? '▾' : '▸'}
         </td>
         <td className="px-3 py-2">
@@ -164,7 +164,9 @@ function Row({
         <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(planned, true)}</td>
         <td className="px-3 py-2 text-right tabular-nums font-medium">{formatCurrency(actual, true)}</td>
         <td className={`px-3 py-2 text-right tabular-nums font-medium ${
-          (direction === 'EXPENSE' ? variance > 0 : variance < 0) ? 'text-cat-red-fg' : 'text-cat-green-fg'
+          (direction === 'EXPENSE' ? variance > 0 : variance < 0)
+            ? 'text-cat-red-fg dark:text-cat-red'
+            : 'text-cat-green-fg dark:text-cat-green'
         }`}>
           {variance >= 0 ? '+' : ''}{formatCurrency(variance, true)}
         </td>

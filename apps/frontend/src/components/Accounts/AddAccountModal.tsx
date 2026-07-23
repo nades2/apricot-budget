@@ -134,7 +134,7 @@ export function AddAccountModal({
           </Field>
 
           {(save.error || archive.error) && (
-            <p className="text-sm text-cat-red-fg bg-cat-red-bg rounded-md px-3 py-2">
+            <p className="text-sm text-cat-red-fg dark:text-cat-red bg-cat-red-bg dark:bg-cat-red/15 rounded-md px-3 py-2">
               {((save.error ?? archive.error) as Error).message}
             </p>
           )}
@@ -144,7 +144,7 @@ export function AddAccountModal({
           {isEdit ? (
             confirmDelete ? (
               <div className="flex items-center gap-2 text-sm">
-                <span className="text-cat-red-fg">Archiver ce compte ?</span>
+                <span className="text-cat-red-fg dark:text-cat-red">Archiver ce compte ?</span>
                 <button
                   onClick={() => archive.mutate()}
                   disabled={archive.isPending}
@@ -157,7 +157,7 @@ export function AddAccountModal({
             ) : (
               <button
                 onClick={() => setConfirmDelete(true)}
-                className="text-sm text-cat-red-fg hover:underline"
+                className="text-sm text-cat-red-fg dark:text-cat-red hover:underline"
               >
                 Archiver
               </button>

@@ -197,14 +197,16 @@ function MerchantGroup({
 }) {
   const [open, setOpen] = useState(group.txs.length === 1);
   const isSpendOverflow = direction === 'EXPENSE' && group.total < 0;
-  // Couleur du total : rouge si dépense, vert si revenu, ambre pour remboursement.
+  // Couleur du total : rouge si dépense sortante, vert si revenu ou
+  // remboursement dans une catégorie dépense (crédit qui allège la dépense).
+  // Chaque token a un variant dark: pour rester lisible sur fond sombre.
   const totalColor =
     (direction === 'EXPENSE' && group.total > 0)
-      ? 'text-cat-green-fg' // remboursement dans une catégorie dépense
+      ? 'text-cat-green-fg dark:text-cat-green' // remboursement dans une catégorie dépense
       : isSpendOverflow
-        ? 'text-cat-red-fg'
+        ? 'text-cat-red-fg dark:text-cat-red'
         : direction === 'INCOME'
-          ? 'text-cat-green-fg'
+          ? 'text-cat-green-fg dark:text-cat-green'
           : 'text-gray-900 dark:text-gray-100';
 
   return (
@@ -214,7 +216,7 @@ function MerchantGroup({
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800/40 transition"
       >
-        <span className="text-gray-400 dark:text-gray-500 text-xs w-3">
+        <span className="text-gray-500 dark:text-gray-300 text-sm leading-none w-4">
           {open ? '▾' : '▸'}
         </span>
         <span className="flex-1 min-w-0 text-sm truncate text-gray-800 dark:text-gray-100">
@@ -341,7 +343,7 @@ function TxItem({
       </select>
       <span
         className={`tabular-nums font-medium w-20 text-right shrink-0 ${
-          isCredit ? 'text-cat-green-fg' : 'text-gray-900 dark:text-gray-100'
+          isCredit ? 'text-cat-green-fg dark:text-cat-green' : 'text-gray-900 dark:text-gray-100'
         }`}
       >
         {isCredit ? '+' : ''}

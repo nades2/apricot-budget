@@ -63,7 +63,7 @@ export function AccountCard({ account }: { account: Account }) {
           {formatCurrency(account.currentBalance, true)}
         </div>
         {evo && (
-          <div className={`text-xs mt-0.5 ${delta >= 0 ? 'text-cat-green-fg' : 'text-cat-red-fg'}`}>
+          <div className={`text-xs mt-0.5 ${delta >= 0 ? 'text-cat-green-fg dark:text-cat-green' : 'text-cat-red-fg dark:text-cat-red'}`}>
             {delta >= 0 ? '+' : ''}{formatCurrency(delta, true)} sur 30 j
           </div>
         )}

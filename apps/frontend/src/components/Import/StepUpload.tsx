@@ -89,7 +89,7 @@ export function StepUpload({ onDone }: { onDone: (imp: CsvImport) => void }) {
               <div className="text-xs text-gray-500 dark:text-gray-400">
                 {(file.size / 1024).toFixed(1)} Ko
               </div>
-              <div className="text-xs text-cat-teal-fg mt-2">
+              <div className="text-xs text-cat-teal-fg dark:text-cat-teal mt-2">
                 Cliquer pour en choisir un autre
               </div>
             </div>
@@ -110,7 +110,7 @@ export function StepUpload({ onDone }: { onDone: (imp: CsvImport) => void }) {
       )}
 
       {upload.error && (
-        <p className="text-sm text-cat-red-fg bg-cat-red-bg rounded-md px-3 py-2">
+        <p className="text-sm text-cat-red-fg dark:text-cat-red bg-cat-red-bg dark:bg-cat-red/15 rounded-md px-3 py-2">
           {(upload.error as Error).message}
         </p>
       )}

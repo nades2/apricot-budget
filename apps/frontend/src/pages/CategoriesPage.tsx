@@ -382,7 +382,7 @@ function DeleteCategoryModal({
                           )}
                         </select>
                         {crossDirection && selectedTarget && (
-                          <div className="text-[11px] text-cat-amber-fg bg-cat-amber-bg rounded px-2 py-1 leading-snug">
+                          <div className="text-[11px] text-cat-amber-fg dark:text-cat-amber bg-cat-amber-bg dark:bg-cat-amber/15 rounded px-2 py-1 leading-snug">
                             <b>Direction différente :</b> tu déplaces{' '}
                             <b>{DIRECTION_LABELS_FR[category.direction].toLowerCase()}</b>{' '}
                             vers{' '}
@@ -421,7 +421,7 @@ function DeleteCategoryModal({
           )}
 
           {error && (
-            <p className="text-xs text-cat-red-fg bg-cat-red-bg rounded p-2">
+            <p className="text-xs text-cat-red-fg dark:text-cat-red bg-cat-red-bg dark:bg-cat-red/15 rounded p-2">
               {error.message}
             </p>
           )}
@@ -497,7 +497,7 @@ function CategoryRow({
           </button>
           <button
             onClick={onDelete}
-            className="w-7 h-7 flex items-center justify-center rounded hover:bg-cat-red-bg text-gray-500 dark:text-gray-400 hover:text-cat-red-fg"
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-cat-red-bg dark:hover:bg-cat-red/15 text-gray-500 dark:text-gray-400 hover:text-cat-red-fg dark:hover:text-cat-red"
             title="Supprimer"
           >
             <i className="ti ti-trash text-sm" aria-hidden="true" />
@@ -665,7 +665,7 @@ function CategoryModal({
           </div>
 
           {mutation.error && (
-            <p className="text-xs text-cat-red-fg bg-cat-red-bg rounded p-2">
+            <p className="text-xs text-cat-red-fg dark:text-cat-red bg-cat-red-bg dark:bg-cat-red/15 rounded p-2">
               {(mutation.error as Error).message}
             </p>
           )}

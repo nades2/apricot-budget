@@ -37,10 +37,10 @@ export function UnbudgetedTable({
 
   const totalColorClass =
     direction === 'EXPENSE'
-      ? 'text-cat-red-fg'
+      ? 'text-cat-red-fg dark:text-cat-red'
       : direction === 'INCOME'
-        ? 'text-cat-green-fg'
-        : 'text-cat-amber-fg';
+        ? 'text-cat-green-fg dark:text-cat-green'
+        : 'text-cat-amber-fg dark:text-cat-amber';
 
   return (
     <section>
@@ -91,10 +91,10 @@ function Row({
   const clickable = !!onClick;
   const amountColorClass =
     direction === 'EXPENSE'
-      ? 'text-cat-red-fg'
+      ? 'text-cat-red-fg dark:text-cat-red'
       : direction === 'INCOME'
-        ? 'text-cat-green-fg'
-        : 'text-cat-amber-fg';
+        ? 'text-cat-green-fg dark:text-cat-green'
+        : 'text-cat-amber-fg dark:text-cat-amber';
 
   return (
     <tr

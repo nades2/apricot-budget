@@ -39,7 +39,7 @@ export function LoginPage() {
         </Field>
 
         {login.error && (
-          <p className="text-sm text-cat-red-fg bg-cat-red-bg dark:bg-cat-red-fg/20 rounded-md px-3 py-2">
+          <p className="text-sm text-cat-red-fg dark:text-cat-red bg-cat-red-bg dark:bg-cat-red/15 rounded-md px-3 py-2">
             {(login.error as Error).message}
           </p>
         )}

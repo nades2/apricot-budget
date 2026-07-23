@@ -28,10 +28,10 @@ export function AlertsBanner() {
           key={a.accountId}
           className={`flex items-start gap-3 px-4 py-3 rounded-lg border ${
             a.severity === 'imminent'
-              ? 'bg-cat-red-bg/40 border-cat-red-fg/30 text-cat-red-fg'
+              ? 'bg-cat-red-bg/40 dark:bg-cat-red/15 border-cat-red-fg/30 dark:border-cat-red/40 text-cat-red-fg dark:text-cat-red'
               : a.severity === 'soon'
-              ? 'bg-cat-yellow-bg/40 border-cat-yellow-fg/30 text-cat-yellow-fg'
-              : 'bg-cat-teal-bg/30 border-cat-teal-fg/20 text-cat-teal-fg'
+              ? 'bg-cat-amber-bg/40 dark:bg-cat-amber/15 border-cat-amber-fg/30 dark:border-cat-amber/40 text-cat-amber-fg dark:text-cat-amber'
+              : 'bg-cat-teal-bg/30 dark:bg-cat-teal/15 border-cat-teal-fg/20 dark:border-cat-teal/40 text-cat-teal-fg dark:text-cat-teal'
           }`}
         >
           <i

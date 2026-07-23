@@ -129,7 +129,7 @@ export function StepMapping({
       </div>
 
       {confirm.error && (
-        <p className="text-sm text-cat-red-fg bg-cat-red-bg rounded-md px-3 py-2">
+        <p className="text-sm text-cat-red-fg dark:text-cat-red bg-cat-red-bg dark:bg-cat-red/15 rounded-md px-3 py-2">
           {(confirm.error as Error).message}
         </p>
       )}
@@ -188,7 +188,7 @@ function MappingRow({
           {row.description}
         </div>
         {row.parseError && (
-          <div className="text-xs text-cat-red-fg mt-0.5">! {row.parseError}</div>
+          <div className="text-xs text-cat-red-fg dark:text-cat-red mt-0.5">! {row.parseError}</div>
         )}
         {row.informational && (
           <div className="text-xs text-gray-400 dark:text-gray-500 italic mt-0.5">
@@ -201,7 +201,7 @@ function MappingRow({
           (pas de gris-800 qui devient invisible en dark) */}
       <td className={`px-3 py-2.5 text-right tabular-nums font-semibold whitespace-nowrap ${
         isCredit
-          ? 'text-cat-green-fg'
+          ? 'text-cat-green-fg dark:text-cat-green'
           : 'text-gray-900 dark:text-gray-100'
       }`}>
         {isCredit ? '+' : ''}{formatCurrency(row.amount, true)}

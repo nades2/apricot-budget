@@ -21,7 +21,7 @@ export function AccountsPage({ type }: { type: 'ASSET' | 'LIABILITY' }) {
   const total = (accounts ?? []).reduce((s, a) => s + Number(a.currentBalance), 0);
   const label = type === 'ASSET' ? 'Actifs' : 'Passifs';
   const noun = type === 'ASSET' ? 'actif' : 'passif';
-  const totalColor = type === 'ASSET' ? 'text-cat-green-fg' : 'text-cat-red-fg';
+  const totalColor = type === 'ASSET' ? 'text-cat-green-fg dark:text-cat-green' : 'text-cat-red-fg dark:text-cat-red';
 
   return (
     <div className="p-6 max-w-7xl mx-auto">

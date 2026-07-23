@@ -206,16 +206,16 @@ export function DayDetailModal({
             {data && data.length > 0 && (
               <>
                 <span>
-                  <span className="text-cat-red-fg font-medium">- {formatCurrency(debit, true)}</span>
+                  <span className="text-cat-red-fg dark:text-cat-red font-medium">- {formatCurrency(debit, true)}</span>
                   <span className="ml-1 text-gray-500 dark:text-gray-400">depenses</span>
                 </span>
                 <span>
-                  <span className="text-cat-green-fg font-medium">+ {formatCurrency(credit, true)}</span>
+                  <span className="text-cat-green-fg dark:text-cat-green font-medium">+ {formatCurrency(credit, true)}</span>
                   <span className="ml-1 text-gray-500 dark:text-gray-400">revenus</span>
                 </span>
                 <span>
                   Net :{' '}
-                  <b className={credit - debit >= 0 ? 'text-cat-green-fg' : 'text-cat-red-fg'}>
+                  <b className={credit - debit >= 0 ? 'text-cat-green-fg dark:text-cat-green' : 'text-cat-red-fg dark:text-cat-red'}>
                     {formatCurrency(credit - debit, true)}
                   </b>
                 </span>
@@ -226,7 +226,7 @@ export function DayDetailModal({
                 Prévu net :{' '}
                 <b
                   className={
-                    plannedNet(plannedGhosts) >= 0 ? 'text-cat-green-fg' : 'text-cat-red-fg'
+                    plannedNet(plannedGhosts) >= 0 ? 'text-cat-green-fg dark:text-cat-green' : 'text-cat-red-fg dark:text-cat-red'
                   }
                 >
                   {formatCurrency(plannedNet(plannedGhosts), true)}
@@ -418,7 +418,7 @@ function TxItem({
         </div>
 
         <div className={`text-sm tabular-nums font-medium ${
-          isCredit ? 'text-cat-green-fg' : 'text-gray-900 dark:text-gray-100'
+          isCredit ? 'text-cat-green-fg dark:text-cat-green' : 'text-gray-900 dark:text-gray-100'
         }`}>
           {isCredit ? '+' : ''}{formatCurrency(tx.amount, true)}
         </div>
@@ -604,7 +604,7 @@ function SplitEditor({
       <button
         onClick={addRow}
         disabled={save.isPending}
-        className="mt-2 text-xs text-cat-teal-fg hover:underline"
+        className="mt-2 text-xs text-cat-teal-fg dark:text-cat-teal hover:underline"
       >
         + Ajouter une catégorie
       </button>
@@ -612,12 +612,12 @@ function SplitEditor({
       <div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-2 text-xs">
         <div className="tabular-nums">
           <span className="text-gray-500 dark:text-gray-400">Total : </span>
-          <span className={balanced ? 'text-cat-green-fg font-medium' : 'text-cat-red-fg font-medium'}>
+          <span className={balanced ? 'text-cat-green-fg dark:text-cat-green font-medium' : 'text-cat-red-fg dark:text-cat-red font-medium'}>
             {currentSum.toFixed(2)}
           </span>
           <span className="text-gray-500 dark:text-gray-400"> / {parentAbs.toFixed(2)}</span>
           {!balanced && (
-            <span className="ml-2 text-cat-red-fg italic">
+            <span className="ml-2 text-cat-red-fg dark:text-cat-red italic">
               reste {remaining.toFixed(2)} $ à répartir
             </span>
           )}

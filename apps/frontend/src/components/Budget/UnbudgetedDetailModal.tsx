@@ -255,7 +255,7 @@ function TxItem({
 
       <div
         className={`text-sm tabular-nums font-medium w-24 text-right shrink-0 ${
-          isCredit ? 'text-cat-green-fg' : 'text-gray-900 dark:text-gray-100'
+          isCredit ? 'text-cat-green-fg dark:text-cat-green' : 'text-gray-900 dark:text-gray-100'
         }`}
       >
         {isCredit ? '+' : ''}

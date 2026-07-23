@@ -131,17 +131,17 @@ export function ProfilePage() {
           </label>
 
           {clientError && (
-            <p className="text-xs text-cat-amber-fg bg-cat-amber-bg rounded p-2">
+            <p className="text-xs text-cat-amber-fg dark:text-cat-amber bg-cat-amber-bg dark:bg-cat-amber/15 rounded p-2">
               {clientError}
             </p>
           )}
           {serverError && (
-            <p className="text-xs text-cat-red-fg bg-cat-red-bg rounded p-2">
+            <p className="text-xs text-cat-red-fg dark:text-cat-red bg-cat-red-bg dark:bg-cat-red/15 rounded p-2">
               {serverError.message}
             </p>
           )}
           {successMsg && (
-            <p className="text-xs text-cat-green-fg bg-cat-green-bg rounded p-2">
+            <p className="text-xs text-cat-green-fg dark:text-cat-green bg-cat-green-bg dark:bg-cat-green/15 rounded p-2">
               {successMsg}
             </p>
           )}
