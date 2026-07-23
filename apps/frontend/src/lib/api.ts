@@ -146,6 +146,8 @@ export type BudgetItem = {
   recurrence: BudgetRecurrence;
   anchorDate: string;
   endDate: string | null;
+  rrule: string | null;
+  dtstart: string | null;
   isActive: boolean;
   notes: string | null;
   category: Category;
@@ -161,6 +163,11 @@ export type BudgetPreset = {
   amount: number;
   recurrence: BudgetRecurrence;
   emoji: string;
+  /** RRULE (RFC 5545) optionnelle. Prend priorité sur recurrence quand définie. */
+  rrule?: string;
+  /** Ancre annuelle fixe (1-12 / 1-31). Utilisée pour calculer anchorDate. */
+  anchorMonth?: number;
+  anchorDay?: number;
 };
 
 export type BudgetLine = {

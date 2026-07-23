@@ -36,6 +36,8 @@ const CATEGORIES: SeedCategory[] = [
   { slug: 'paiement-auto',         name: 'Paiement d\'auto',      direction: 'EXPENSE', icon: 'car',             color: 'amber',  sortOrder: 42 },
   { slug: 'hypotheque-loyer',      name: 'Hypothèque et loyer',   direction: 'EXPENSE', icon: 'home',            color: 'teal',   sortOrder: 50 },
   { slug: 'services-publics',      name: 'Services publics',      direction: 'EXPENSE', icon: 'bolt',            color: 'teal',   sortOrder: 51 },
+  { slug: 'taxe-scolaire',         name: 'Taxe scolaire',         direction: 'EXPENSE', icon: 'school',          color: 'blue',   sortOrder: 52 },
+  { slug: 'taxe-municipale',       name: 'Taxe municipale',       direction: 'EXPENSE', icon: 'building-community', color: 'blue', sortOrder: 53 },
   { slug: 'assurance',             name: 'Assurance',             direction: 'EXPENSE', icon: 'shield',          color: 'green',  sortOrder: 60 },
   { slug: 'assurance-vie',         name: 'Assurance vie',         direction: 'EXPENSE', icon: 'shield-heart',    color: 'green',  sortOrder: 61 },
   { slug: 'sante',                 name: 'Santé',                 direction: 'EXPENSE', icon: 'stethoscope',     color: 'pink',   sortOrder: 70 },

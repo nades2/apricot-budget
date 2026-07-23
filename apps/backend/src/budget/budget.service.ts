@@ -142,6 +142,8 @@ export class BudgetService {
         recurrence: dto.recurrence,
         anchorDate: new Date(dto.anchorDate),
         endDate: dto.endDate ? new Date(dto.endDate) : null,
+        rrule: dto.rrule ?? null,
+        dtstart: dto.dtstart ? new Date(dto.dtstart) : null,
         notes: dto.notes,
       },
     });
@@ -153,6 +155,7 @@ export class BudgetService {
     if (dto.amount !== undefined) data.amount = new Prisma.Decimal(dto.amount);
     if (dto.anchorDate) data.anchorDate = new Date(dto.anchorDate);
     if (dto.endDate) data.endDate = new Date(dto.endDate);
+    if (dto.dtstart) data.dtstart = new Date(dto.dtstart);
     return this.prisma.budgetItem.update({ where: { id }, data });
   }
 

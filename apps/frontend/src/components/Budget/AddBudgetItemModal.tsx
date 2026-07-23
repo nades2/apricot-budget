@@ -30,6 +30,9 @@ export function AddBudgetItemModal({
   const [amount, setAmount] = useState(item?.amount ?? '0');
   const [recurrence, setRecurrence] = useState<BudgetRecurrence>(item?.recurrence ?? 'MONTHLY');
   const [anchorDate, setAnchorDate] = useState(item?.anchorDate?.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
+  // RRULE optionnelle, transportée depuis les presets (ex: taxes à dates fixes
+  // multiples par an). Non éditable dans l'UI custom pour l'instant.
+  const [rrule, setRrule] = useState<string | undefined>(item?.rrule ?? undefined);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
@@ -54,12 +57,19 @@ export function AddBudgetItemModal({
     setDirection(p.direction);
     setAmount(String(p.amount));
     setRecurrence(p.recurrence);
+    setRrule(p.rrule);
+    // Si le preset porte une ancre annuelle (jour/mois fixe), calcule
+    // anchorDate = prochaine occurrence future (année courante si à venir,
+    // sinon année suivante).
+    if (p.anchorMonth && p.anchorDay) {
+      setAnchorDate(nextAnnualAnchor(p.anchorMonth, p.anchorDay));
+    }
     setTab('custom');
   }
 
   const save = useMutation({
     mutationFn: () => {
-      const body = {
+      const body: Record<string, unknown> = {
         categoryId,
         name: name.trim(),
         direction,
@@ -67,6 +77,10 @@ export function AddBudgetItemModal({
         recurrence,
         anchorDate,
       };
+      if (rrule) {
+        body.rrule = rrule;
+        body.dtstart = anchorDate;
+      }
       return isEdit
         ? api.patch(`/budget/items/${item!.id}`, body)
         : api.post('/budget/items', body);
@@ -254,4 +268,20 @@ function recurrenceLabel(r: BudgetRecurrence): string {
     DAILY: 'quotidien', WEEKLY: 'hebdo', BIWEEKLY: 'bi-hebdo',
     MONTHLY: 'mensuel', YEARLY: 'annuel', ONCE: 'une fois',
   }[r];
+}
+
+/**
+ * Prochain "mois/jour" annuel à partir d'aujourd'hui, formaté YYYY-MM-DD.
+ * Utilisé pour ancrer les postes de taxes à une date fixe : si la date de
+ * cette année est déjà passée, on saute à l'année suivante.
+ */
+function nextAnnualAnchor(month: number, day: number): string {
+  const today = new Date();
+  const year =
+    today.getMonth() + 1 > month || (today.getMonth() + 1 === month && today.getDate() > day)
+      ? today.getFullYear() + 1
+      : today.getFullYear();
+  const mm = String(month).padStart(2, '0');
+  const dd = String(day).padStart(2, '0');
+  return `${year}-${mm}-${dd}`;
 }

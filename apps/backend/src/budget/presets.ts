@@ -13,6 +13,21 @@ export type BudgetPreset = {
   amount: number;
   recurrence: BudgetRecurrence;
   emoji: string;
+
+  /**
+   * RRULE (RFC 5545) optionnelle. Prend priorité sur `recurrence` quand
+   * définie. Exemple pour Taxe scolaire : "FREQ=YEARLY;BYMONTH=8,11;BYMONTHDAY=15".
+   */
+  rrule?: string;
+
+  /**
+   * Jour d'ancrage fixe (1-12 / 1-31). Quand présents, le frontend calcule
+   * anchorDate = premier occurrence future avec ce mois/jour (année en cours
+   * si à venir, sinon année suivante). Utile pour les postes à dates fixes
+   * comme les taxes municipales et scolaires.
+   */
+  anchorMonth?: number;
+  anchorDay?: number;
 };
 
 export const BUDGET_PRESETS: BudgetPreset[] = [
@@ -39,6 +54,69 @@ export const BUDGET_PRESETS: BudgetPreset[] = [
 
   // --- Cartes de crédit ---
   { key: 'paiement-mc',      name: 'Paiement Mastercard',      categorySlug: 'paiement-carte-credit', direction: 'EXPENSE', amount: 500,  recurrence: 'MONTHLY',  emoji: '💳' },
+
+  // --- Taxes (dates fixes annuelles) ---
+  // Taxe scolaire — CSSDHR : 2 versements, mi-août + mi-novembre, même jour (15).
+  //   Un seul BudgetItem couvre les 2 dates via BYMONTH=8,11;BYMONTHDAY=15.
+  {
+    key: 'taxe-scolaire',
+    name: 'Taxe scolaire',
+    categorySlug: 'taxe-scolaire',
+    direction: 'EXPENSE',
+    amount: 300,
+    recurrence: 'YEARLY',
+    emoji: '🏫',
+    rrule: 'FREQ=YEARLY;BYMONTH=8,11;BYMONTHDAY=15',
+    anchorMonth: 8,
+    anchorDay: 15,
+  },
+
+  // Taxe municipale — Saint-Jean-sur-Richelieu : 4 versements à jours
+  // hétérogènes (12/16/18/17), donc un BudgetItem par versement.
+  {
+    key: 'taxe-municipale-v1',
+    name: 'Taxe municipale — 1er versement',
+    categorySlug: 'taxe-municipale',
+    direction: 'EXPENSE',
+    amount: 800,
+    recurrence: 'YEARLY',
+    emoji: '🏛️',
+    anchorMonth: 2,
+    anchorDay: 12,
+  },
+  {
+    key: 'taxe-municipale-v2',
+    name: 'Taxe municipale — 2e versement',
+    categorySlug: 'taxe-municipale',
+    direction: 'EXPENSE',
+    amount: 800,
+    recurrence: 'YEARLY',
+    emoji: '🏛️',
+    anchorMonth: 4,
+    anchorDay: 16,
+  },
+  {
+    key: 'taxe-municipale-v3',
+    name: 'Taxe municipale — 3e versement',
+    categorySlug: 'taxe-municipale',
+    direction: 'EXPENSE',
+    amount: 800,
+    recurrence: 'YEARLY',
+    emoji: '🏛️',
+    anchorMonth: 6,
+    anchorDay: 18,
+  },
+  {
+    key: 'taxe-municipale-v4',
+    name: 'Taxe municipale — 4e versement',
+    categorySlug: 'taxe-municipale',
+    direction: 'EXPENSE',
+    amount: 800,
+    recurrence: 'YEARLY',
+    emoji: '🏛️',
+    anchorMonth: 9,
+    anchorDay: 17,
+  },
 
   // --- Revenus ---
   { key: 'salaire-bihebdo',  name: 'Salaire',                  categorySlug: 'salaire',               direction: 'INCOME',  amount: 2000, recurrence: 'BIWEEKLY', emoji: '💰' },

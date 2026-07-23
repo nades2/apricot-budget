@@ -41,6 +41,21 @@ export class CreateBudgetItemDto {
   @IsDateString()
   endDate?: string;
 
+  /**
+   * RRULE (RFC 5545) optionnelle. Prend priorité sur `recurrence` quand
+   * définie. Exemples :
+   *   FREQ=YEARLY;BYMONTH=8,11;BYMONTHDAY=15
+   *   FREQ=MONTHLY;BYMONTHDAY=1,15
+   */
+  @IsOptional()
+  @IsString()
+  rrule?: string;
+
+  /** DTSTART pour la RRULE (fallback = anchorDate). */
+  @IsOptional()
+  @IsDateString()
+  dtstart?: string;
+
   @IsOptional()
   @IsString()
   notes?: string;
